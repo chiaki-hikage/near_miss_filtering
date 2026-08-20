@@ -1,0 +1,112 @@
+# comma1M 固有の設定。
+#
+# このデータセットには CAN が無い代わりに、セグメントごとの位置がある。
+# 位置で地域を絞ってから自己運動でイベントを探す、という流れの設定をここに置く。
+#
+# 重要な制約: localizer の t は端末の boot time で、録画日時は入っていない。
+#   したがって「寒冷地かどうか」は地理から言えるが、「冬に走ったか」は言えない。
+#   降雪・路面状態の確認は thumbnail.jpg (1 件 13 KB) の目視に頼る。
+
+# localizer から正規化信号を作るときの前処理
+localizer:
+  # 進路方位を微分する前に均す窓。100 Hz なので 0.1 s = 11 点
+  course_smooth_window_s: 0.1
+  # これ未満の対地速度では進路方位が定義できない。NaN にして埋めない
+  course_min_speed_mps: 2.0
+
+# 転送量の見積りに使う実測値 [MB/件]
+file_size_mb:
+  localizer: 2.54
+  thumbnail: 0.013
+  frame_info: 0.05
+  fcamera: 75.0
+  ecamera: 75.0
+
+# ---------------------------------------------------------------------------
+# 寒冷地・降雪可能地域の判定
+#
+# 使える変数は緯度・経度・標高と、そこから逆引きした国 / 一次行政区分だけ。
+# 気候データは持っていないので、次の 3 つを併用する。
+#   1. 行政区分ごとの積雪傾向 (下の一覧)
+#   2. 標高 (山岳部は緯度が低くても積雪する)
+#   3. 緯度 (一覧に無い国のための保険)
+# どれか 1 つでも当たれば候補にする (再現率を優先)。
+# ---------------------------------------------------------------------------
+cold_region:
+  # 州の全域で積雪が多い地域。US は州名、それ以外は一次行政区分名。
+  heavy_snow_admin1:
+    - Alaska
+    - Maine
+    - Vermont
+    - New Hampshire
+    - New York
+    - Michigan
+    - Wisconsin
+    - Minnesota
+    - North Dakota
+    - South Dakota
+    - Montana
+    - Wyoming
+    - Colorado
+    - Utah
+    - Idaho
+    - Massachusetts
+    - Connecticut
+    - Rhode Island
+    - Pennsylvania
+    - Iowa
+    - Nebraska
+    - West Virginia
+
+  # 冬に積雪はあるが多くない地域。
+  # California / Washington / Oregon / Arizona / Nevada / New Mexico は
+  # 州内の気候差が大きすぎるのでここに入れず、標高で拾う。
+  # (実測: California 931 件の標高中央値 24 m、900 m 以上は 14 件しかない。
+  #  Washington 151 件も中央値 55 m でシアトル周辺の低地。)
+  moderate_snow_admin1:
+    - Kansas
+    - Missouri
+    - Illinois
+    - Indiana
+    - Ohio
+    - New Jersey
+    - Maryland
+    - Delaware
+    - Virginia
+    - Kentucky
+
+  # 国単位。一次行政区分名で分けきれないものをここで拾う。
+  heavy_snow_country:
+    - CA      # カナダ
+    - NO
+    - SE
+    - FI
+    - IS
+    - RU
+    - EE
+  moderate_snow_country:
+    - PL
+    - CZ
+    - SK
+    - AT
+    - CH      # 標高でも拾えるが低地の都市部を取りこぼさないため
+    - DE
+    - DK
+    - KR
+    - JP
+    - RO
+    - HU
+    - BG
+
+  # 標高による上書き。山岳部は緯度が低くても積雪する。
+  # 全 4,216 件の標高分布は p50=113 m / p90=416 m / p99=1,737 m。
+  altitude_m:
+    heavy: 1600.0
+    moderate: 900.0
+
+  # 緯度による上書き (絶対値)。一覧に無い国のための保険。
+  # 海洋性気候 (シアトル、英国、アイルランド) を過大評価するので、
+  # ここで拾ったものは moderate 止まりになるよう高めに置く。
+  latitude_deg:
+    heavy: 50.0
+    moderate: 45.0

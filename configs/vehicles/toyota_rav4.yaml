@@ -1,0 +1,334 @@
+# Toyota RAV4 (comma2k19 Chunk 1-2)
+#
+# ビット定義の出典: opendbc/dbc/generator/toyota/_toyota_2017.dbc
+# 符号・スケールの実測検証結果は docs/signals_rav4.md を参照。
+# validated: false の信号は、検証が済むまで enabled: false のままにする。
+
+name: toyota_rav4
+description: "Toyota RAV4 2017 (comma2k19)"
+dongle_ids:
+  - b0c9d2329ad1606b
+
+# 自転車モデルによる突き合わせ検証で使う諸元。
+# 出典が確認できない値は null にしておき、利用側で無効化する。
+geometry:
+  wheelbase_m: 2.66           # カタログ値
+  # 線形単軌道モデルの当てはめで実測した値。docs/signals_rav4.md 参照。
+  #   δsw = SR·L·(r/v) + SR·Kus·(v·r) + δoffset
+  #   Chunk_1 の定常旋回 36,818 点で R² = 0.973
+  steer_ratio: 16.75          # ステアリングギヤ比
+  understeer_gradient: 0.00235  # rad·s²/m。前輪換算で約 1.3 deg/g
+  steer_offset_deg: 0.911     # 舵角センサのゼロ点ずれ
+  # 輪速の左右差から実測した実効トレッド幅。
+  # Chunk_1 の 193,993 点で当てはめ (左右差 = -1.636 x yaw_rad, r = -0.847, 残差 std 0.033 m/s)
+  # カタログのトレッド (約 1.57〜1.60 m) より大きいのはタイヤ転がり半径の影響。
+  track_width_m: 1.636
+  yaw_residual_std_dps: 0.341 # 残差の標準偏差。異常判定の基準に使う
+
+# raw_can から復号する信号。
+#   start_bit / length は DBC の Motorola (@0) 表記のまま。
+#   sign: 実測で判明した符号補正。物理的に正しい向きへ直すために掛ける係数。
+#   bus : 受信バス番号。同じアドレスが複数バスに別内容で流れることがあるため
+#         必ず指定する。実測で 0x224 はバス 0 が BRAKE_MODULE、バス 1 は別物だった。
+#         送信フレーム (src の 0x80) は指定に関わらず常に除外する。
+signals:
+  ACCEL_X:
+    can_id: 36
+    start_bit: 17
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.03589
+    offset: -18.375
+    sign: -1.0            # 検証: 減速で正だった。進行方向正へ反転する
+    unit: "m/s^2"
+    kind: continuous
+    validated: true
+    enabled: true
+    note: "docs/signals_rav4.md 1章。スケールの妥当性は未確定のため副系列として使う"
+
+  ACCEL_Y:
+    can_id: 36
+    start_bit: 33
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.03589
+    offset: -18.375
+    sign: -1.0            # 検証: YAW_RATE と逆符号だった
+    unit: "m/s^2"
+    kind: continuous
+    validated: true
+    enabled: true
+
+  YAW_RATE:
+    can_id: 36
+    start_bit: 1
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.244
+    offset: -125.0
+    sign: 1.0             # 検証: 舵角と同符号。補正不要
+    unit: "deg/s"
+    kind: continuous
+    validated: true
+    enabled: true
+
+  BRAKE_PRESSED:
+    can_id: 548
+    start_bit: 5
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    validated: false
+    enabled: true
+    note: "単一ビットのため誤りにくいが突き合わせ検証は未了"
+
+  FABS:
+    can_id: 800
+    start_bit: 2
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: abs_fault
+    validated: true
+    enabled: true
+    note: |
+      ABS "故障" フラグ。作動フラグではない。
+      TSS2 で ABS が明らかに作動している区間 (0x226 ABSACT = 1、車輪ロックあり) でも
+      この信号は 0 のままだった。0x320 の F 系 (FVSCM/FVSCSFT/FVSCL) と同じ故障系。
+      RAV4 2017 には作動フラグを載せた 0x226 が存在しないため、
+      このデータセットでは ABS 作動を判定できない。
+
+  # BRKON (start_bit 8) は Chunk_1 全体で常に 0 だった。ビット位置が誤り。
+  BRKON:
+    can_id: 800
+    start_bit: 8
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    validated: false
+    enabled: false
+    note: "Chunk_1 全体で常に 0。ビット位置が誤り"
+
+  # 強い減速で立つ車両側のフラグ。全 64 ビットの走査で見つけた。
+  #   意味は未確定。緊急制動表示灯 (ESS) やブレーキアシストの作動が候補だが、
+  #   DBC で確認していないので名前は挙動そのままにしてある。
+  #   点灯率は縦加速度で決まる (docs/signals_rav4.md):
+  #     -3.0 m/s² より強い : 100%
+  #     -2.5 〜 -3.0       :  96%
+  #     -2.0 〜 -2.5       :  55%
+  #     -1.0 m/s² より弱い :   0%
+  #   ABS ではない。ABS は車輪のスリップで作動するが、これは減速度だけで決まる。
+  DECEL_FLAG:
+    can_id: 800
+    start_bit: 63
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    validated: true
+    enabled: true
+    note: "挙動は検証済み (減速度の閾値で立つ)。信号名の意味は未確定"
+
+  # --- 復号経路の突き合わせ用 -------------------------------------------
+  # processed_log に展開済みの車速・舵角・輪速を、同じ raw_can から復号し直したもの。
+  # チャネル名を分けてあるので検出には使われない。commaCarSegments 側は
+  # processed_log を持たず、これと同じ定義で主系列を作るため、
+  # ここでの一致が「生 CAN からの復号経路が正しい」ことの根拠になる。
+  # 出典: opendbc/dbc/generator/toyota/_toyota_2017.dbc
+  #       (0x0B4 SP1 / 0x0AA VXFL 他 / 0x25 SSA・SSAS は TSS2 と同一定義)
+  SPEED:
+    can_id: 180           # 0x0B4
+    start_bit: 47
+    length: 16
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: 0.0
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: speed_can_mps
+    validated: true
+    enabled: true
+    note: "processed_log/CAN/speed との一致を scripts/check_signal_parity.py で確認"
+
+  WHEEL_SPEED_FL:
+    can_id: 170           # 0x0AA
+    start_bit: 22
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_fl_can_mps
+    validated: true
+    enabled: true
+
+  WHEEL_SPEED_FR:
+    can_id: 170
+    start_bit: 6
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_fr_can_mps
+    validated: true
+    enabled: true
+
+  WHEEL_SPEED_RL:
+    can_id: 170
+    start_bit: 54
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_rl_can_mps
+    validated: true
+    enabled: true
+
+  WHEEL_SPEED_RR:
+    can_id: 170
+    start_bit: 38
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_rr_can_mps
+    validated: true
+    enabled: true
+
+  STEER_ANGLE:
+    can_id: 37            # 0x25 SSA
+    start_bit: 3
+    length: 12
+    signed: true
+    bus: 0
+    factor: 1.5
+    offset: 0.0
+    sign: 1.0
+    unit: "deg"
+    kind: continuous
+    channel: steer_angle_can_deg
+    validated: true
+    enabled: true
+
+  STEER_FRACTION:
+    can_id: 37            # 0x25 SSAS
+    start_bit: 39
+    length: 4
+    signed: true
+    bus: 0
+    factor: 0.1
+    offset: 0.0
+    sign: 1.0
+    unit: "deg"
+    kind: continuous
+    channel: steer_fraction_can_deg
+    validated: true
+    enabled: true
+
+  # 車両側が算出した前後加速度。車速微分の ax_mps2 を独立に裏付ける。
+  # 0x320 VSC1S07 は既に FABS で使っているメッセージ。
+  GVC:
+    can_id: 800
+    start_bit: 39
+    length: 8
+    signed: true
+    bus: 0
+    factor: 0.04
+    offset: 0.0
+    sign: 1.0
+    unit: "m/s^2"
+    kind: continuous
+    channel: gvc_mps2
+    validated: false
+    enabled: true
+    note: "opendbc の VSC1S07->GVC。openpilot も carState の縦加速度として読んでいる"
+
+  # アクセル開度。0x2C1 ENG1S01 -> EACCP。TSS2 の GAS_PEDAL と同一定義。
+  GAS_PEDAL:
+    can_id: 705
+    start_bit: 55
+    length: 8
+    signed: false
+    bus: 0
+    factor: 0.5
+    offset: 0.0
+    sign: 1.0
+    unit: "%"
+    kind: continuous
+    channel: gas_pedal_pct
+    validated: false
+    enabled: true
+    note: "アクセル急 OFF -> パニックブレーキの判定材料。現時点で検出には未使用"
+
+  BRAKE_PRESSURE:
+    can_id: 548
+    start_bit: 43
+    length: 12
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: continuous
+    validated: false
+    enabled: false        # 加速中に最大値を示す。ビット位置が疑わしいので使わない
+    note: "docs/signals_rav4.md 2章"
+
+# 復号し直した舵角。processed_log/CAN/steering_angle と比べる。
+derived:
+  steer_can_deg:
+    sum: [steer_angle_can_deg, steer_fraction_can_deg]
+
+# openpilot が送信したフレームの判定。
+#   comma2k19 の raw_can/src は下位ビットがバス番号、0x80 が立つと送信フレーム。
+openpilot_tx:
+  src_tx_flag: 128
+  # 制御出力とみなすメッセージ。どれかが送信されていれば介入区間とする。
+  control_addresses:
+    - 740     # 0x2E4 STEERING_LKA
+    - 835     # 0x343 ACC_CONTROL

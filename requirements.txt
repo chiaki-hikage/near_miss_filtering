@@ -1,0 +1,22 @@
+numpy>=1.24
+pandas>=2.0
+PyYAML>=6.0
+pyarrow>=12.0
+
+# commaCarSegments を扱う場合のみ必要。
+#   pycapnp    : rlog (openpilot のログ) は capnp 形式
+#   zstandard  : rlog.zst の展開
+#   requests   : セグメントの取得
+pycapnp>=2.0
+zstandard>=0.21
+requests>=2.31
+
+# comma1M を扱う場合のみ必要。
+#   safetensors      : localizer.safetensors の読み出し
+#   pymap3d          : ECEF -> 緯度経度 (Dataset Card の公式例と同じ経路)
+#   reverse_geocoder : 緯度経度から国・行政区分をオフラインで引く
+#   Pillow           : thumbnail から天候の指標を作る
+safetensors>=0.4
+pymap3d>=3.0
+reverse_geocoder>=1.5
+Pillow>=10.0

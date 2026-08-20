@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.history/
+.DS_Store
+out/
+data/
+.pytest_cache/
+raw_data/

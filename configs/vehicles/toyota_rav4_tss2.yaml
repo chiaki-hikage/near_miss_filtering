@@ -1,0 +1,644 @@
+# Toyota RAV4 TSS2 (commaCarSegments / TOYOTA_RAV4_TSS2)
+#
+# comma2k19 の RAV4 (2017, TSS-P) とは別プラットフォーム。
+# 一部のメッセージが移動している (ブレーキ 0x224 -> 0x226 など) ため、
+# 同じ車名でも設定を分けて持つ。
+#
+# ビット定義の出典 (opendbc, master):
+#   opendbc/dbc/generator/toyota/toyota_nodsu_pt.dbc      TSS2 固有の上書き
+#   opendbc/dbc/generator/toyota/_toyota_2017.dbc         共通の車両系
+#   opendbc/dbc/generator/toyota/_toyota_adas_standard.dbc  ADAS 系
+#   opendbc/dbc/toyota_tss2_adas.dbc                      レーダトラック
+# factor / offset は DBC 記載のまま書き、単位換算は unit_in / unit で行う。
+#
+# バス構成 (実測): バス 0 = 車両、バス 1 = レーダ、バス 2 = 前方カメラ。
+# panda がバス 0 <-> バス 2 を転送するため、同じアドレスが送信フラグ付き (src の 0x80)
+# で二重に現れる。bus を必ず指定し、送信フレームは常に除外する。
+
+name: toyota_rav4_tss2
+description: "Toyota RAV4 TSS2 (commaCarSegments)"
+dongle_ids: []          # commaCarSegments は多数の車両を含むので dongle では引かない
+platforms:
+  - TOYOTA_RAV4_TSS2
+
+# rlog の carParams が報告する値 (openpilot の車種定義)。
+# understeer_gradient 以下は実測の当てはめで決める。未実施のうちは null にしておき、
+# 物理モデルによる判定 (yaw_instability) を無効のままにする。
+geometry:
+  wheelbase_m: 2.69           # carParams.wheelbase = 2.6899
+  steer_ratio: 18.569         # 当てはめ実測値 (carParams.steerRatio は 14.30)
+  # 線形単軌道モデルの当てはめで実測した値 (15 セグメント / 3 車両 / 14,675 点)。
+  #   δsw = SR·L·(r/v) + SR·Kus·(v·r) + δoffset      R² = 0.968
+  # 当てはめで出る steer_ratio は 18.57 で、carParams の 14.30 とは 30% 違う。
+  # openpilot の 14.30 は制御用の調律値で、ここで要るのは
+  # 「舵角からヨーレートを予測する残差が小さくなる実効値」なので当てはめ値を使う。
+  # 残差の標準偏差 0.359 deg/s は comma2k19 の 0.341 deg/s とほぼ同じで、
+  # モデルの説明力は同程度。ただし 15 分ぶんの当てはめであり暫定。
+  # 台数を増やしてスクリーニングする際は車両ごとの再当てはめを検討する。
+  understeer_gradient: 0.001794   # rad·s²/m
+  steer_offset_deg: 1.206
+  # 輪速の左右差から実測した実効トレッド幅。
+  # 15 セグメント 16,510 点で当てはめ (左右差 = -1.637 x yaw_rad, r = -0.886, 残差 std 0.030 m/s)
+  # カタログのトレッド (約 1.57〜1.60 m) より大きいのはタイヤ転がり半径の影響。
+  track_width_m: 1.637
+  # 残差の標準偏差。196 セグメント (3.3 時間) を、モデルが成り立つ領域
+  #   (v > 10 m/s かつ 正味方位変化 < 15 deg) に限って測った値。
+  # 15 セグメントで測った 0.359 とほぼ同じ。領域を限らないと 0.663 まで広がるが、
+  # それは旋回の入口・出口でのモデルの遅れであって、車両の不安定さではない。
+  yaw_residual_std_dps: 0.392
+
+signals:
+  # --- 縦方向 -------------------------------------------------------------
+  # 0x0B4 の SPEED は表示車速。comma2k19 の RAV4 では輪速平均より 2.13% 高く出た
+  # (実測: SPEED = 1.0213 x 輪速平均)。主系列には使わず突き合わせ用に持つ。
+  # 主系列の speed_mps は derived で 4 輪の輪速平均から作る。
+  SPEED:
+    can_id: 180           # 0x0B4 SPEED
+    start_bit: 47
+    length: 16
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: 0.0
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: speed_can_mps
+    validated: true
+    enabled: true
+    note: "表示車速。この車では輪速平均の 0.998 倍で、車種ごとに較正が違う"
+
+  # --- 輪速 ---------------------------------------------------------------
+  WHEEL_SPEED_FL:
+    can_id: 170           # 0x0AA WHEEL_SPEEDS
+    start_bit: 22
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_fl_mps
+    validated: false
+    enabled: true
+
+  WHEEL_SPEED_FR:
+    can_id: 170
+    start_bit: 6
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_fr_mps
+    validated: false
+    enabled: true
+
+  WHEEL_SPEED_RL:
+    can_id: 170
+    start_bit: 54
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_rl_mps
+    validated: false
+    enabled: true
+
+  WHEEL_SPEED_RR:
+    can_id: 170
+    start_bit: 38
+    length: 15
+    signed: false
+    bus: 0
+    factor: 0.01
+    offset: -67.67
+    sign: 1.0
+    unit_in: "km/h"
+    unit: "m/s"
+    kind: continuous
+    channel: ws_rr_mps
+    validated: false
+    enabled: true
+
+  # --- 舵角 ---------------------------------------------------------------
+  # 本体 1.5 deg 刻みと端数 0.1 deg 刻みが別信号になっている。
+  # 足したものを derived の steer_deg として使う。
+  STEER_ANGLE:
+    can_id: 37            # 0x25 STEER_ANGLE_SENSOR
+    start_bit: 3
+    length: 12
+    signed: true
+    bus: 0
+    factor: 1.5
+    offset: 0.0
+    sign: 1.0
+    unit: "deg"
+    kind: continuous
+    channel: steer_angle_deg
+    validated: false
+    enabled: true
+
+  STEER_FRACTION:
+    can_id: 37
+    start_bit: 39
+    length: 4
+    signed: true
+    bus: 0
+    factor: 0.1
+    offset: 0.0
+    sign: 1.0
+    unit: "deg"
+    kind: continuous
+    channel: steer_fraction_deg
+    validated: false
+    enabled: true
+
+  # 車両が報告する舵角レート。こちらで微分した steer_rate_dps との照合に使う。
+  STEER_RATE:
+    can_id: 37
+    start_bit: 35
+    length: 12
+    signed: true
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "deg/s"
+    kind: continuous
+    channel: steer_rate_can_dps
+    validated: false
+    enabled: true
+
+  STEER_TORQUE_DRIVER:
+    can_id: 608           # 0x260 STEER_TORQUE_SENSOR
+    start_bit: 15
+    length: 16
+    signed: true
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: continuous
+    channel: steer_torque_driver
+    validated: false
+    enabled: true
+    note: "運転者の操舵トルク。openpilot 介入中でも人が握っているかを見る"
+
+  # --- 慣性 ---------------------------------------------------------------
+  # 0x24 KINEMATICS は comma2k19 の RAV4 と同じ定義。符号補正も同じ値を仮置きし、
+  # 検証スクリプトで確かめる。
+  ACCEL_X:
+    can_id: 36            # 0x24 KINEMATICS
+    start_bit: 17
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.03589
+    offset: -18.375
+    sign: 1.0             # 検証: sign=-1 だと車速微分と r=-0.92。反転が不要だった
+    unit: "m/s^2"
+    kind: continuous
+    channel: accel_x
+    validated: true
+    enabled: true
+    note: |
+      comma2k19 の RAV4 (2017) とは符号が逆。あちらは sign=-1 で車速微分と r=+0.84、
+      こちらは sign=+1 で r=+0.92 (15 セグメント 17,288 点)。DBC 定義は同一なので
+      車両側の実装差。車種ごとに実測で決める。
+
+  ACCEL_Y:
+    can_id: 36
+    start_bit: 33
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.03589
+    offset: -18.375
+    sign: 1.0             # 検証: sign=-1 だと v x yaw と r=-0.87。反転が不要だった
+    unit: "m/s^2"
+    kind: continuous
+    channel: accel_y
+    validated: true
+    enabled: true
+    note: |
+      sign=+1 で ay=v x yaw と r=+0.87 / 傾き 0.694。
+      傾きが 1 に満たないのは comma2k19 でも同じ (0.703) で、
+      ACCEL_Y のスケールが v x yaw に対して一貫して小さいことによる。
+      両データセットで同じ比なので、既存の閾値 (ay_kin 2.0 / ay_can 1.4) がそのまま使える。
+
+  YAW_RATE:
+    can_id: 36
+    start_bit: 1
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.244
+    offset: -125.0
+    sign: 1.0
+    unit: "deg/s"
+    kind: continuous
+    channel: yaw_rate
+    validated: false
+    enabled: true
+
+  # 車両側が算出した前後加速度。車速微分の ax_mps2 を独立に裏付ける。
+  # comma2k19 の RAV4 でも同じ位置にあるが、当時は復号していなかった。
+  GVC:
+    can_id: 800           # 0x320 VSC1S07
+    start_bit: 39
+    length: 8
+    signed: true
+    bus: 0
+    factor: 0.04
+    offset: 0.0
+    sign: 1.0
+    unit: "m/s^2"
+    kind: continuous
+    channel: gvc_mps2
+    validated: true
+    enabled: true
+    note: "検証: 車速微分と r=+0.96 / 傾き 0.926 (comma2k19 でも r=+0.98 / 0.943)"
+
+  # 0x320 VSC1S07 の F 系 (FVSCM / FVSCSFT / FVSCL / FABS) は「故障」フラグ。
+  # comma2k19 の 3.1 時間でも TSS2 の 33 時間でも一度も立たず、
+  # ABS が明らかに作動している区間 (下の ABSACT 参照) でも 0 のままだった。
+  # ABS 作動の判定には使えない。故障の有無を見る文脈量として残す。
+  FABS:
+    can_id: 800
+    start_bit: 2
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: abs_fault
+    validated: true
+    enabled: true
+    note: "ABS 故障フラグ。作動フラグではない (ABSACT で確認)"
+
+  # --- ABS / VSC の作動 ---------------------------------------------------
+  # 出典: opendbc/dbc/toyota_2017_ref_pt.dbc の 0x226 VSC1F06。
+  # openpilot の DBC は同じ 0x226 を BRAKE_MODULE として一部の信号しか定義していない。
+  # 参照 DBC 側の並びが正しいことは実測で確かめた:
+  #   WSTP (bit 37) = openpilot の BRAKE_PRESSED と同一
+  #   PMC  (bit 1, 10 bit x 0.02) = マスタシリンダ圧 [MPa]。実測 0〜9.9 MPa で妥当
+  # ABSACT は、4 輪速が個別に瞬間的に落ちる (車輪ロック) 区間とちょうど一致した。
+  ABSACT:
+    can_id: 550           # 0x226 VSC1F06
+    start_bit: 59
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: abs_active_flag
+    validated: true
+    enabled: true
+    note: "ABS 作動。車輪ロックの発生と一致することを実測で確認"
+
+  VSCACT:
+    can_id: 550
+    start_bit: 36
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: vsc_active_flag
+    validated: false
+    enabled: true
+    note: "VSC 作動。同じメッセージの ABSACT が検証できたのでビット位置は確からしい"
+
+  # マスタシリンダ圧。openpilot の BRAKE_PRESSURE (単位不明) と同じ場所にあるが、
+  # 参照 DBC では 0.02 MPa 刻みの物理量として定義されている。
+  BRAKE_MC_PRESSURE:
+    can_id: 550
+    start_bit: 1
+    length: 10
+    signed: false
+    bus: 0
+    factor: 0.02
+    offset: 0.0
+    sign: 1.0
+    unit: "MPa"
+    kind: continuous
+    channel: brake_mc_mpa
+    validated: false
+    enabled: true
+
+  # 滑りの警告灯 (0x3B7 VSC1S95 の SLP_WL)。ABS 作動と同じ場面で立った。
+  SLIP_WARN:
+    can_id: 951
+    start_bit: 10
+    length: 3
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: slip_warn
+    validated: false
+    enabled: true
+
+  BRKON:
+    can_id: 800
+    start_bit: 8
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: brkon
+    validated: false
+    enabled: false
+    note: |
+      TSS2 では点灯する (duty 5.4%) が、BRAKE_PRESSED (duty 6.8%) と
+      一度も同時に立たない。踏んでいる間に立つ信号なら重なるはずで、
+      意味が確定できないため無効にしておく。
+
+  # --- ブレーキ -----------------------------------------------------------
+  # TSS2 は BRAKE_MODULE が 0x226 に移り、ビット位置も 2017 と異なる。
+  BRAKE_PRESSED:
+    can_id: 550           # 0x226 BRAKE_MODULE (nodsu)
+    start_bit: 37
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: brake_pressed
+    validated: false
+    enabled: true
+
+  BRAKE_PRESSURE:
+    can_id: 550
+    start_bit: 0
+    length: 9
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: continuous
+    channel: brake_pressure
+    validated: false
+    enabled: true
+    note: "DBC 注記 'seems prop to pedal force'。単位不明のため相対値としてのみ扱う"
+
+  BRAKE_POSITION:
+    can_id: 550
+    start_bit: 16
+    length: 9
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: continuous
+    channel: brake_position
+    validated: false
+    enabled: true
+    note: "DBC 注記 'seems proportional to pedal displacement'。単位不明"
+
+  # --- アクセル -----------------------------------------------------------
+  GAS_PEDAL:
+    can_id: 705           # 0x2C1 GAS_PEDAL
+    start_bit: 55
+    length: 8
+    signed: false
+    bus: 0
+    factor: 0.5
+    offset: 0.0
+    sign: 1.0
+    unit: "%"
+    kind: continuous
+    channel: gas_pedal_pct
+    validated: false
+    enabled: true
+    note: "アクセル急 OFF -> パニックブレーキの判定に使う。comma2k19 では未復号"
+
+  GAS_RELEASED:
+    can_id: 466           # 0x1D2 PCM_CRUISE
+    start_bit: 4
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: gas_released
+    validated: false
+    enabled: true
+
+  # --- ACC / 車両制御 -----------------------------------------------------
+  CRUISE_ACTIVE:
+    can_id: 466
+    start_bit: 5
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: cruise_active
+    validated: false
+    enabled: true
+
+  ACC_BRAKING:
+    can_id: 466
+    start_bit: 12
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: acc_braking
+    validated: false
+    enabled: true
+
+  # --- 横滑り防止 ---------------------------------------------------------
+  # 2017 の DBC と同じく介入フラグは無く、無効化状態とブレーキホールドだけ。
+  TC_DISABLED:
+    can_id: 951           # 0x3B7 ESP_CONTROL
+    start_bit: 13
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: tc_disabled
+    validated: false
+    enabled: true
+
+  BRAKE_HOLD_ACTIVE:
+    can_id: 951
+    start_bit: 36
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: brake_hold_active
+    validated: false
+    enabled: true
+
+  # --- 方向指示器 ---------------------------------------------------------
+  # 意図した車線変更と回避操舵を切り分けるために使う。comma2k19 では未復号。
+  TURN_SIGNALS:
+    can_id: 1556          # 0x614 BLINKERS_STATE
+    start_bit: 29
+    length: 2
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: turn_signal
+    validated: false
+    enabled: false
+    note: |
+      DBC は 1 = 左 / 2 = 右。15 セグメントでの実測は 3 が 95.3% (消灯)、
+      2 が 3.1%、1 が 1.6%。値 2 の区間は前後 3 秒の正味方位変化が右向き
+      (中央 -3.3 deg) で DBC と整合するが、値 1 の区間は標本 147 点しかなく
+      左向きの動きが確認できなかった。左右の対応が確定するまで無効にしておく。
+      1 Hz でしか流れないため、判定に使うには時間分解能も足りない。
+
+  HAZARD_LIGHT:
+    can_id: 1556
+    start_bit: 27
+    length: 1
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: hazard_light
+    validated: false
+    enabled: false
+    note: "15 セグメントで常に 0。検証できないため無効"
+
+  # --- 衝突被害軽減ブレーキ (純正 AEB) ------------------------------------
+  # 前方カメラ (バス 2) が出す。openpilot はこれを stockAeb として扱う。
+  # 作動していれば車両自身がヒヤリハットと判断した証拠になる。
+  PRECOLLISION_ACTIVE:
+    can_id: 643           # 0x283 PRE_COLLISION
+    start_bit: 41
+    length: 1
+    signed: false
+    bus: 2
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: flag
+    channel: precollision_active
+    validated: false
+    enabled: true
+
+  PRECOLLISION_FORCE:
+    can_id: 643
+    start_bit: 23
+    length: 16
+    signed: true
+    bus: 2
+    factor: 2.0
+    offset: 0.0
+    sign: 1.0
+    unit: "N"
+    kind: continuous
+    channel: precollision_force_n
+    validated: false
+    enabled: true
+
+# 複数信号を足して 1 本にするもの。
+derived:
+  # 舵角 = 本体 (1.5 deg 刻み) + 端数 (0.1 deg 刻み)。同一メッセージなので時刻は一致する。
+  # comma2k19 の processed_log/CAN/steering_angle と rmse 0.0012 deg で一致した作り方。
+  steer_deg:
+    sum: [steer_angle_deg, steer_fraction_deg]
+  # 主系列の車速。comma2k19 の processed_log/CAN/speed は 4 輪の輪速平均そのもの
+  # だった (実測 rmse 0.0002 m/s) ので、こちらも同じ作り方にそろえる。
+  # 0x0B4 の表示車速を使うと車種ごとの較正差がそのまま入る。
+  speed_mps:
+    mean: [ws_fl_mps, ws_fr_mps, ws_rl_mps, ws_rr_mps]
+
+# レーダ。TSS2 は 1 トラック 1 アドレスで 0x180〜0x18F に距離・横位置・相対速度、
+# 0x190〜0x19F に同じ番号のスコアが流れる (opendbc/dbc/toyota_tss2_adas.dbc)。
+# バス 1。comma2k19 の processed_log/CAN/radar と同じ RadarTracks に組み立てる。
+radar:
+  bus: 1
+  track_first_id: 384     # 0x180 TRACK_A_0
+  track_count: 16
+  max_distance_m: 254.0
+  # DBC の LAT_DIST は右が正。本プロジェクトの正規化では左を正にそろえる
+  # (features.path_lateral_offset がヨーレート由来の進路ずれと直接比べるため)。
+  lateral_sign: -1.0
+  signals:
+    long_dist: {start_bit: 15, length: 15, signed: false, factor: 0.01}
+    lat_dist:  {start_bit: 31, length: 11, signed: true,  factor: 0.04}
+    rel_speed: {start_bit: 47, length: 12, signed: true,  factor: 0.025}
+    new_track: {start_bit: 36, length: 1}
+    valid:     {start_bit: 48, length: 1}
+  score:
+    first_id: 400         # 0x190 TRACK_B_0
+    signal: {start_bit: 23, length: 8}
+    min_score: 50.0
+
+# openpilot の介入区間は pandaStates.controlsAllowed から直接取れる (チャネル op_engaged)。
+# 送信フレームの有無から推定する必要が無いので control_addresses は空にする。
+# panda がカメラのフレームをバス 0 へ転送するため、送信フラグだけでは
+# openpilot の出力と転送を区別できない。
+openpilot_tx:
+  src_tx_flag: 128
+  control_addresses: []

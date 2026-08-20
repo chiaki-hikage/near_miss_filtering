@@ -1,0 +1,24 @@
+# comma1M の localizer を「車両」として扱うための空の設定。
+#
+# comma1M には CAN が無い。復号する信号も車両諸元も無いので、
+# ここには何も定義しない。パイプラインが車種設定を必須にしているため、
+# 対応付けのためだけに置いてある。
+#
+# 諸元 (ホイールベース、ステアリングギヤ比、トレッド幅) は
+# 車種が公開されていないので不明。null のままにして、
+# 自転車モデル残差や輪速異常の判定を無効にする。
+
+name: comma1m_localizer
+description: "comma1M (車種不明。localizer の自己運動のみ)"
+dongle_ids: []
+platforms: []
+
+geometry:
+  wheelbase_m: null
+  steer_ratio: null
+  understeer_gradient: null
+  steer_offset_deg: null
+  track_width_m: null
+  yaw_residual_std_dps: null
+
+signals: {}
