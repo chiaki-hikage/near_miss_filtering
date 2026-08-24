@@ -82,6 +82,7 @@ CONTINUOUS = (
     ("net_heading_win_deg", "正味方位変化 [deg]"),
     ("yaw_residual_dps", "ヨー残差 [deg/s]"),
     ("yaw_residual_sigma", "ヨー残差 [sigma]"),
+    ("beta_model_deg", "横滑り角 (単軌道モデル) [deg]"),
     ("ws_spread_mps", "輪速ばらつき (生) [m/s]"),
     ("ws_spread_smooth_mps", "輪速ばらつき (0.3s 平滑) [m/s]"),
     ("ws_spread_excess_mps", "輪速ばらつき 超過 [m/s]"),

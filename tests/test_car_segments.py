@@ -331,3 +331,48 @@ def test_pedal_panic_brake_ignores_braking_without_release():
     """もともと踏んでいなければ「急に戻した」ではない。"""
     t, gas, ax, brake = _pedal_case(0.0, -4.0, 20.0)
     assert find_pedal_panic_brakes(t, gas, ax, 20.0, PB_CFG, brake_level=brake).max() == 0.0
+
+
+# --- 定常単軌道モデルによる横滑り角 -----------------------------------------
+
+def test_sideslip_model_reproduces_a_steady_turn():
+    """定常円旋回を作って、式が定義どおりの値を返すことを見る。"""
+    from near_miss.features import sideslip_model_deg
+
+    l_r, k = 1.5065, 0.006573
+    v = np.full(10, 20.0)
+    yaw_dps = np.full(10, 10.0)
+    a_y = np.full(10, 3.5)
+    got = sideslip_model_deg(v, yaw_dps, a_y, l_r, k, min_speed_mps=3.0)
+    want = np.degrees(l_r * np.deg2rad(10.0) / 20.0 - k * 3.5)
+    assert np.allclose(got, want)
+
+
+def test_sideslip_model_is_nan_below_min_speed():
+    """第 1 項が発散する低速では NaN。埋めない。"""
+    from near_miss.features import sideslip_model_deg
+
+    v = np.array([0.0, 1.0, 2.9, 3.0, 10.0])
+    out = sideslip_model_deg(v, np.full(5, 5.0), np.zeros(5), 1.5, 0.0065, min_speed_mps=3.0)
+    assert np.isnan(out[:3]).all()
+    assert np.isfinite(out[3:]).all()
+
+
+def test_sideslip_model_sign_left_turn():
+    """左旋回 (ヨーレート正・横加速度正) では、幾何の項と横力の項が逆に効く。"""
+    from near_miss.features import sideslip_model_deg
+
+    v, yaw, ay = np.array([20.0]), np.array([10.0]), np.array([3.5])
+    geom_only = sideslip_model_deg(v, yaw, ay, 1.5, 0.0, min_speed_mps=3.0)
+    with_tire = sideslip_model_deg(v, yaw, ay, 1.5, 0.0065, min_speed_mps=3.0)
+    assert geom_only[0] > 0
+    assert with_tire[0] < geom_only[0]
+
+
+def test_sideslip_model_column_appears_only_with_geometry(monkeypatch):
+    """諸元が無い車種では列を作らない。"""
+    from near_miss.config import VehicleConfig
+
+    bare = VehicleConfig.from_dict({"name": "unknown", "geometry": {}})
+    assert bare.sideslip_ay_coeff() is None
+    assert bare.center_to_rear_m() is None

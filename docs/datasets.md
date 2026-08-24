@@ -9,6 +9,7 @@
 - comma2k19 → [comma2k19_data.md](comma2k19_data.md)
 - commaCarSegments → [comma_car_segments.md](comma_car_segments.md)
 - comma1M → [comma1M.md](comma1M.md)
+- KIT Multi-Surface Driving Maneuvers → [kit_msdm.md](kit_msdm.md)
 
 ## 記号
 
@@ -26,48 +27,51 @@
 
 ## 1. 規模と入手性
 
-| 項目 | comma2k19 | commaCarSegments | comma1M |
-|---|---|---|---|
-| 配布元 | comma.ai / HuggingFace | HF `commaai/commaCarSegments` | HF `commaai/comma1M` |
-| セグメント数 | 2,019 (公称) | **188,883** (`database.json` 実測) | 4,216 (tree API 全走査) |
-| 合計時間 | 33 h (公称) | **3,148 h** (60 s x 件数) | 70.4 h |
-| 1 セグメント長 | 60 s | 60 s | 60 s |
-| まとまりの単位 | ドライブ (`dongle\|日時`) | route 101,471 本 | **公開情報の範囲では無し** |
-| 車種 | 2 (RAV4 / Civic) | **230 車種キー** | 不明 |
-| 走行環境 | CA-280 の高速のみ | 限定なし | 限定なし (§4 地理分布) |
-| 配布総量 | 約 100 GB (公称) | 約 260 GB (推定) | 550 GB (API `usedStorage`) |
+| 項目 | comma2k19 | commaCarSegments | comma1M | KIT MSDM |
+|---|---|---|---|---|
+| 配布元 | comma.ai / HuggingFace | HF `commaai/commaCarSegments` | HF `commaai/comma1M` | RADAR4KIT |
+| セグメント数 | 2,019 (公称) | **188,883** (`database.json` 実測) | 4,216 (tree API 全走査) | 41 走行 |
+| 合計時間 | 33 h (公称) | **3,148 h** (60 s x 件数) | 70.4 h | **42.3 分** (限界走行は 14.5 分) |
+| 1 セグメント長 | 60 s | 60 s | 60 s | 可変 17.8〜183.2 s |
+| まとまりの単位 | ドライブ (`dongle\|日時`) | route 101,471 本 | **公開情報の範囲では無し** | 走行 1 本 |
+| 車種 | 2 (RAV4 / Civic) | **230 車種キー** | 不明 | 1 (Hyundai IONIQ 5 後輪駆動) |
+| 走行環境 | CA-280 の高速のみ | 限定なし | 限定なし (§4 地理分布) | **KIT 閉鎖走行エリア。横方向の限界まで** |
+| 配布総量 | 約 100 GB (公称) | 約 260 GB (推定) | 550 GB (API `usedStorage`) | **171.7 MB** |
 
 - commaCarSegments の総量は 1 件平均 1.38 MB (12 件のヘッダ実測) x 188,883 からの推定
 - 上位車種: TOYOTA_RAV4_TSS2 11,387 / TOYOTA_COROLLA_TSS2 8,559 /
   TOYOTA_PRIUS 8,310 / CHEVROLET_BOLT_EUV 7,662 / TOYOTA_HIGHLANDER_TSS2 6,971
 - 実際に手元で処理した量: comma2k19 Chunk_1 188 件 (3.11 h) /
-  commaCarSegments RAV4 TSS2 2,000 件 (33.3 h) / comma1M 834 件 (13.6 h)
+  commaCarSegments RAV4 TSS2 2,000 件 (33.3 h) / comma1M 834 件 (13.6 h) /
+  KIT MSDM 全 41 走行 (42.3 分)
+- KIT MSDM は 1000 Hz。他の 3 つは 20〜100 Hz
 
 ---
 
 ## 2. 使える信号
 
-| 信号 | comma2k19 | commaCarSegments | comma1M |
-|---|---|---|---|
-| 車速 | ○ `processed_log` | ○ 生 CAN | △ 速度ベクトルのノルム |
-| 舵角 | ○ | ○ | × |
-| 輪速 (4 輪) | ○ | ○ | × |
-| ヨーレート | ○ CAN | ○ CAN | △ **進路変化率** (course rate) |
-| 縦横加速度 | ○ CAN + IMU | ○ CAN | △ 車速の微分と `v x r` |
-| ブレーキ圧 | × ビット位置が不確かで無効化 | ○ 0x226 `BRAKE_MC` | × |
-| アクセル開度 | ○ | ○ | × |
-| ABS 作動 | × 0x226 が存在せず故障フラグのみ | ○ `ABSACT` | × |
-| VSC / TCS 作動 | ? | ○ 復号可 (作動は §3b) | × |
-| 純正 AEB (PCS) | ? | ○ 0x283 | × |
-| レーダ | ○ `processed_log` | ○ 生 CAN (バス 1) | × |
-| IMU (加速度計 / ジャイロ) | ○ 110 Hz / 20 Hz | × | △ localizer に融合済みで分離できない |
-| GNSS 測位解 | ○ 5 Hz。lat/lon/alt + UTC | × | △ 同上 (ECEF として出る) |
-| GNSS 生観測 (疑似距離) | ○ `raw_gnss_{ublox,qcom}` | × | × |
-| openpilot 介入 | △ 送信フレームからの推定 | ○ `pandaStates` (**CAN ではない**) | × |
-| 車両諸元 (WB / SR) | ○ 実測当てはめ | ○ 実測当てはめ。`carParams` にも値があるが不一致 | × 車種不明 |
-| 絶対位置 | ○ `global_pose` 20 Hz。ただし全件 CA-280 で地域の絞り込みには使えない | × | ○ localizer (ECEF) |
-| **録画日時** | ○ `frame_gps_times` に絶対 UTC | × | × |
-| 映像 | ○ 20 Hz 全編 | × | ○ 20 Hz。**部分取得可** |
+| 信号 | comma2k19 | commaCarSegments | comma1M | KIT MSDM |
+|---|---|---|---|---|
+| 車速 | ○ `processed_log` | ○ 生 CAN | △ 速度ベクトルのノルム | ○ 光学式 |
+| 舵角 | ○ | ○ | × | △ **タイヤ切れ角**でホイール角ではない |
+| 輪速 (4 輪) | ○ | ○ | × | △ 前左のみ。**限界走行には無い** |
+| ヨーレート | ○ CAN | ○ CAN | △ **進路変化率** (course rate) | ○ |
+| 縦横加速度 | ○ CAN + IMU | ○ CAN | △ 車速の微分と `v x r` | ○ 後軸位置 |
+| ブレーキ圧 | × ビット位置が不確かで無効化 | ○ 0x226 `BRAKE_MC` | × | × |
+| アクセル開度 | ○ | ○ | × | × |
+| ABS 作動 | × 0x226 が存在せず故障フラグのみ | ○ `ABSACT` | × | × |
+| VSC / TCS 作動 | ? | ○ 復号可 (作動は §3b) | × | × 作動状態の記載も無い |
+| 純正 AEB (PCS) | ? | ○ 0x283 | × | × |
+| レーダ | ○ `processed_log` | ○ 生 CAN (バス 1) | × | × |
+| IMU (加速度計 / ジャイロ) | ○ 110 Hz / 20 Hz | × | △ localizer に融合済みで分離できない | △ 加速度とヨーレートのみ |
+| GNSS 測位解 | ○ 5 Hz。lat/lon/alt + UTC | × | △ 同上 (ECEF として出る) | ○ RTK の lat/lon |
+| GNSS 生観測 (疑似距離) | ○ `raw_gnss_{ublox,qcom}` | × | × | × |
+| openpilot 介入 | △ 送信フレームからの推定 | ○ `pandaStates` (**CAN ではない**) | × | — |
+| 車両諸元 (WB / SR) | ○ 実測当てはめ | ○ 実測当てはめ。`carParams` にも値があるが不一致 | × 車種不明 | **○ ヨー慣性・コーナリング剛性まで公開** |
+| 絶対位置 | ○ `global_pose` 20 Hz。ただし全件 CA-280 で地域の絞り込みには使えない | × | ○ localizer (ECEF) | ○ ただし 80 x 90 m の範囲 |
+| **録画日時** | ○ `frame_gps_times` に絶対 UTC | × | × | × |
+| 映像 | ○ 20 Hz 全編 | × | ○ 20 Hz。**部分取得可** | × |
+| **横滑り角 β** | × 推定のみ (ノイズ床 5°) | × | × 推定のみ (ノイズ床 5°) | **○ 光学式で実測。最大 19.9°** |
 
 制約と未確認の内訳:
 
@@ -147,13 +151,16 @@ comma2k19 の実測 (Chunk_1 の 1 セグメント):
 | `panic_brake_with_lead` | レーダ | ○ | ○ | × |
 | `yaw_instability` | 舵角 + 諸元 | ○ | ○ | × |
 | `wheel_speed_anomaly` | 輪速 + トレッド幅 | ○ | ○ | × |
-| `panic_brake_pedal` | アクセル開度 | ○ | ○ | × |
+| `panic_brake_pedal` | アクセル開度 | ○ | ○ | × | × |
 | `abs_active` | ABS 作動フラグ | × | ○ | × |
 | `vsc_active` | VSC 作動フラグ | ? | ○ | × |
 | `aeb_active` | PCS フラグ | ? | ○ | × |
 
 comma1M の △ は、ヨーレートが進路変化率であることによる。閾値は comma2k19 の
 CAN 由来ヨーレート向けに決めてあるので、**そのままでは合わない**。
+
+KIT MSDM は列に入れていない。42 分の閉鎖路走行で、候補の抽出対象ではなく
+**物差し**として使うため ([kit_msdm.md](kit_msdm.md))。
 
 ## 3b. 実測で観測された件数
 
@@ -196,14 +203,14 @@ comma2k19 は Chunk_1 だけなので母数が小さい。
 
 1 セグメントあたりの実測値。
 
-| 内訳 | comma2k19 | commaCarSegments | comma1M |
-|---|---|---|---|
-| 最小構成 | 5.1 MB (`processed_log/CAN`) | **1.38 MB** (`rlog.zst`) | 2.54 MB (`localizer`) |
-| 位置だけ | — | — | **2.3 KB** (Range 読み) |
-| 静止画 | 0.49 MB (`preview.png`) | 無し | **13 KB** (`thumbnail.jpg`) |
-| 映像 (全編) | 36 MB | 無し | 75 MB x カメラ数 |
-| 映像 (前後 7 秒) | ? | — | **4.6〜10.5 MB** |
-| HTTP Range | ? | ? | ○ 単一 206。複数 Range は 416 |
+| 内訳 | comma2k19 | commaCarSegments | comma1M | KIT MSDM |
+|---|---|---|---|---|
+| 最小構成 | 5.1 MB (`processed_log/CAN`) | **1.38 MB** (`rlog.zst`) | 2.54 MB (`localizer`) | **171.7 MB で全部** |
+| 位置だけ | — | — | **2.3 KB** (Range 読み) | — |
+| 静止画 | 0.49 MB (`preview.png`) | 無し | **13 KB** (`thumbnail.jpg`) | 無し |
+| 映像 (全編) | 36 MB | 無し | 75 MB x カメラ数 | 無し |
+| 映像 (前後 7 秒) | ? | — | **4.6〜10.5 MB** | — |
+| HTTP Range | ? | ? | ○ 単一 206。複数 Range は 416 | 不要 (全体で 171.7 MB) |
 
 comma1M は safetensors / HEVC の一部だけを取れる。位置は全 4,216 件で 9.6 MB、
 映像は候補の前後だけで 1 件 5〜10 MB。comma2k19 と commaCarSegments で
@@ -241,6 +248,19 @@ comma1M は safetensors / HEVC の一部だけを取れる。位置は全 4,216 
 - **向く用途**: 地域・天候で層別した挙動の比較、候補の映像確認
 - **注意**: `yaw_rate` は進路変化率。スリップの判定に使わない。
   積雪の見た目判定は精度 3 割なので、映像で確認するまで積雪とみなさない
+
+### KIT Multi-Surface Driving Maneuvers
+
+- **役割**: 横滑り物理の**物差し**。候補の抽出対象ではない
+- **強み**: 横滑り角 β を光学式センサで **1000 Hz 実測**。最大 19.9°。
+  ヨー慣性・コーナリング剛性・センサ取り付け位置まで公開。μ が 2 水準 (1.1 / 0.7)。
+  171.7 MB と小さく、CC BY-SA 4.0 で商用可
+- **弱み**: **42 分**しかない (限界走行は 14.5 分)。1 台・乾燥・50 km/h 以下。
+  **限界走行に輪速が無い**。ESC/VSC フラグも映像も無い
+- **向く用途**: 特徴量の較正と検証。単軌道モデルの適用範囲の確定
+- **注意**: MAT ファイルが MATLAB の timeseries (MCOS) で、**scipy では読めない**。
+  β は計測点で大きく変わる (Correvit 位置と重心で符号すら合わない)。
+  IONIQ 5 はオーバーステア傾向 (Kus < 0)、RAV4 は逆
 
 ---
 

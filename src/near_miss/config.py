@@ -185,6 +185,40 @@ class VehicleConfig:
         v = self.geometry.get(key)
         return default if v is None else float(v)
 
+    def center_to_rear_m(self) -> float | None:
+        """重心から後軸までの距離 l_r。"""
+        wb = self.geometry_value("wheelbase_m")
+        l_f = self.geometry_value("center_to_front_m")
+        if wb is None or l_f is None:
+            return None
+        return wb - l_f
+
+    def sideslip_ay_coeff(self) -> float | None:
+        """横滑り角の式の第 2 項の係数 k = m*l_f/(C_r*L) [s^2/m]。
+
+        定常の線形単軌道モデルでは、重心位置の横滑り角が
+            beta = l_r * yaw_rate / v  -  k * a_y
+        で書ける。k は本来 質量・後輪コーナリング剛性・ホイールベースから決まるが、
+        前後の剛性が等しい (C_f = C_r) と置くと安定係数 Kus と結び付いて
+            Kus = m (l_r - l_f) / (L * C)     ->     k = l_f * Kus / (l_r - l_f)
+        となり、**質量も剛性も知らなくても当てはめ済みの Kus から出せる**。
+        KIT の実測諸元で照合したところ、公称の k = 0.005018 に対して
+        この式は 0.005024 を返し、0.1% で一致した (docs/kit_msdm.md)。
+
+        l_r - l_f は近い 2 つの数の差なので l_f の誤差に敏感である。ただし
+        k が 2 倍ずれても beta の誤差の標準偏差は 0.94〜1.37 度に収まることを
+        KIT のデータで確かめてある。
+        """
+        l_f = self.geometry_value("center_to_front_m")
+        l_r = self.center_to_rear_m()
+        kus = self.geometry_value("understeer_gradient")
+        if l_f is None or l_r is None or kus is None:
+            return None
+        denom = l_r - l_f
+        if abs(denom) < 1e-6:
+            return None
+        return float(l_f * kus / denom)
+
     def enabled_signals(self) -> tuple[SignalSpec, ...]:
         return tuple(s for s in self.signals if s.enabled)
 

@@ -47,6 +47,7 @@ _CONTEXT = (
     ("lead_target_speed_mps", "min"),
     ("ttc_s", "min"),
     ("yaw_residual_dps", "absmax"),
+    ("beta_model_deg", "absmax"),
     ("counter_steer_active", "max"),
     ("s_evasion_excursion_m", "absmax"),
     ("thw_rate_s_per_s", "min"),

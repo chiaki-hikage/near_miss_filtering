@@ -24,6 +24,11 @@ geometry:
   # カタログのトレッド (約 1.57〜1.60 m) より大きいのはタイヤ転がり半径の影響。
   track_width_m: 1.636
   yaw_residual_std_dps: 0.341 # 残差の標準偏差。異常判定の基準に使う
+  # 重心から前軸までの距離。この車両の rlog は無いので carParams が取れない。
+  # TSS2 側で確認した openpilot の既定値 (ホイールベースの 0.44 倍) を当てる。
+  #   2.66 x 0.44 = 1.1704
+  # 実測ではなく仮定である。TSS2 と同じ扱いにして横断で比べられるようにしてある。
+  center_to_front_m: 1.1704
 
 # raw_can から復号する信号。
 #   start_bit / length は DBC の Motorola (@0) 表記のまま。

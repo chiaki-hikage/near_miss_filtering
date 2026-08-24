@@ -233,6 +233,41 @@ def bicycle_yaw_rate(
     return out
 
 
+def sideslip_model_deg(
+    v_mps: np.ndarray,
+    yaw_rate_dps: np.ndarray,
+    ay_mps2: np.ndarray,
+    l_r: float,
+    k: float,
+    min_speed_mps: float,
+) -> np.ndarray:
+    """定常の線形単軌道モデルから重心位置の横滑り角 beta [deg] を出す。
+
+        beta = l_r * yaw_rate / v  -  k * a_y          (k = m*l_f/(C_r*L))
+
+    使うのは車速・ヨーレート・横加速度の 3 つだけで、いずれも CAN から取れる。
+
+    a_y には **車体固定の横加速度センサの値** を入れること。v x yaw_rate を
+    入れてはいけない。入れると式が yaw_rate と v だけの関数に潰れ、
+    横滑りの情報が消える。
+    路面のカントがある区間ではセンサは重力の分だけ小さく読むが、
+    タイヤの横力もその分だけ小さいので、モデルの入力としてはセンサ値が正しい。
+
+    KIT Multi-Surface Driving Maneuvers の光学式センサによる実測と照合した結果
+    (docs/kit_msdm.md):
+        相関 0.9865 / 回帰の傾き 1.048 / 誤差の標準偏差 0.99 deg
+        誤差は beta の大きさによらずほぼ一定 (0.74〜1.24 deg、実測 ±19 deg の範囲)
+
+    速度が min_speed_mps 未満では第 1 項が発散するので NaN にする。埋めない。
+    """
+    v = np.asarray(v_mps, dtype=float)
+    out = np.degrees(
+        l_r * np.deg2rad(yaw_rate_dps) / np.where(v > 0, v, np.nan) - k * np.asarray(ay_mps2, float)
+    )
+    out[~(v >= min_speed_mps)] = np.nan
+    return out
+
+
 def counter_steer(
     yaw_rate_dps: np.ndarray,
     steer_rate_dps: np.ndarray,
@@ -898,6 +933,16 @@ def compute_features(
                 cfg["physics"]["counter_steer_min_yaw_dps"],
                 cfg["physics"]["counter_steer_min_rate_dps"],
             )
+    # 定常単軌道モデルから出す横滑り角。横加速度センサが要る。
+    if vehicle is not None and all(c in df for c in ("v_mps", "yaw_rate_dps", "ay_can_mps2")):
+        k = vehicle.sideslip_ay_coeff()
+        l_r = vehicle.center_to_rear_m()
+        if k is not None and l_r is not None:
+            df["beta_model_deg"] = sideslip_model_deg(
+                df["v_mps"].to_numpy(), df["yaw_rate_dps"].to_numpy(),
+                df["ay_can_mps2"].to_numpy(), l_r, k, cfg["physics"]["min_speed_mps"],
+            )
+
     # 独立した横加速度センサとの差。片方だけがおかしくなれば開く
     if "ay_can_mps2" in df and "ay_kin_mps2" in df:
         df["ay_residual_mps2"] = df["ay_can_mps2"] - df["ay_kin_mps2"]
