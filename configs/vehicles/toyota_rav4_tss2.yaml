@@ -54,6 +54,16 @@ geometry:
   # ことを KIT のデータで確認してある (docs/kit_msdm.md §4 E)。
   center_to_front_m: 1.1835
 
+  # beta のセンサ雑音。直進区間の beta の散らばりを速度で分けて
+  #     sigma_beta(v) = sqrt( (l_r*sigma_r/v)^2 + (k*sigma_ay)^2 )
+  # に当てはめて求めた (scripts/calibrate_beta_noise.py)。
+  # 横滑りフィルタの 1 次判定は、この式で割った beta_sigma を使う。
+  # deg で固定すると 1/v のぶんだけ低速側が雑音で埋まるため。
+  # 実測: commaCarSegments 301 セグメント / 直進 178,876 点 / 残差 rms 0.016 deg
+  yaw_rate_noise_dps: 0.3204
+  accel_y_noise_mps2: 0.2059
+
+
 signals:
   # --- 縦方向 -------------------------------------------------------------
   # 0x0B4 の SPEED は表示車速。comma2k19 の RAV4 では輪速平均より 2.13% 高く出た

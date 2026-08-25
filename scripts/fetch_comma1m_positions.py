@@ -55,7 +55,7 @@ def segment_list(cache: Path, limit: int | None) -> list[str]:
     else:
         ids = comma1m.list_segments(requests.Session())
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(ids))
+        path.write_text(json.dumps(ids), encoding="utf-8")
     return ids[:limit] if limit else ids
 
 

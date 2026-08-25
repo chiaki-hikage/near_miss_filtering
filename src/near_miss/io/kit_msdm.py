@@ -303,3 +303,70 @@ def sideslip_deg(
     beta = np.degrees(np.arctan2(v_y, v_x))
     beta[run["v_x_cor_mps"] < min_speed_mps] = np.nan
     return beta
+
+
+# --- 正規化表現への変換 -------------------------------------------------
+#
+# 抽出パイプライン (signals -> features -> sideslip) を KIT の走行にも
+# そのまま通せるようにする。横滑りフィルタが本物の横滑りを拾えるかどうかを、
+# β の実測がある走行で確かめるため。
+#
+# チャネルの対応と、そう決めた理由:
+#   speed_mps  v_x を重心へ移した値。単軌道モデルの v は重心の前後速度。
+#   steer_deg  delta_stm はタイヤ切れ角そのもの。車種設定側の steer_ratio を
+#              1.0 にしてあるので、そのまま deg にして渡す。
+#   yaw_rate   w_z。ISO 8855 で左が正。正規化の取り決めと同じ向き。
+#   accel_y    a_y_ra (後軸位置)。重心へ移すには角加速度の項が要るが、
+#              ヨーレートの微分で雑音が 30 m/s^2 規模まで増える。
+#              CAN 由来の β 推定を検証したときも a_y_ra と突き合わせている
+#              (docs/kit_msdm.md) ので、ここでも同じものを使う。
+
+def segment_data(
+    run: "Run",
+    params: "VehicleParams",
+    vehicle_name: str = "kit_msdm",
+    dataset: str = "kit_msdm",
+) -> Any:
+    """1 走行を正規化済みの SegmentData にする。"""
+    from .canonical import Channel, SegmentData, SegmentRef
+
+    t = run.t
+    yaw = run["w_z_cor_radps"]
+    r = np.asarray(params.trvec("cor_ra"), dtype=float) + params.trvec("ra_cog")
+    v_x, _v_y = translate_velocity(run["v_x_cor_mps"], run["v_y_cor_mps"], yaw, r)
+
+    channels = {
+        "speed_mps": Channel(t, v_x, "m/s", "continuous"),
+        "steer_deg": Channel(t, np.degrees(run["delta_stm_rad"]), "deg", "continuous"),
+        "yaw_rate": Channel(t, np.degrees(yaw), "deg/s", "continuous"),
+        "accel_x": Channel(t, run["a_x_ra_mps2"], "m/s^2", "continuous"),
+        "accel_y": Channel(t, run["a_y_ra_mps2"], "m/s^2", "continuous"),
+    }
+    ref = SegmentRef(
+        path=run.path, dongle_id=run.surface, drive_id=run.name, index=0, dataset=dataset
+    )
+    return SegmentData(
+        ref=ref,
+        vehicle=vehicle_name,
+        channels=channels,
+        raw_can_loaded=False,
+        notes=[
+            "speed_mps は Correvit の v_x を重心へ剛体変換した値",
+            "steer_deg はタイヤ切れ角。車種設定の steer_ratio は 1.0",
+            "accel_y は後軸位置の実測値。重心へは移していない",
+        ],
+        meta={"surface": run.surface, "kind": run.kind, "mu": params.mu(run.surface)},
+    )
+
+
+def measured_sideslip_on_grid(
+    run: "Run", params: "VehicleParams", t_grid: np.ndarray, at: str = "cog"
+) -> np.ndarray:
+    """光学式センサによる実測 β を、指定した時刻へ最近傍で並べ直す。
+
+    1000 Hz を 20 Hz グリッドへ落とすだけなので内挿はしない。
+    実測値そのものを比較に使いたいので、平滑化もしない。
+    """
+    beta = sideslip_deg(run, params, at=at)
+    idx = np.searchsorted(run.t, t_grid).clip(0, run.t.size - 1)
+    return beta[idx]

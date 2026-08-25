@@ -1,22 +1,109 @@
-numpy>=1.24
-pandas>=2.0
-PyYAML>=6.0
-pyarrow>=12.0
+# 自動生成。直接編集しないこと。
+# 依存の正は pyproject.toml と uv.lock。
+#
+# 更新:
+#   uv export --format requirements-txt --no-hashes --no-emit-project \
+#     --extra viz --extra dev -o requirements.txt
+#
+# uv を使わずに入れる場合の逃げ道として置いてある。通常は次を使う:
+#   uv sync --extra viz --extra dev
 
-# commaCarSegments を扱う場合のみ必要。
-#   pycapnp    : rlog (openpilot のログ) は capnp 形式
-#   zstandard  : rlog.zst の展開
-#   requests   : セグメントの取得
-pycapnp>=2.0
-zstandard>=0.21
-requests>=2.31
-
-# comma1M を扱う場合のみ必要。
-#   safetensors      : localizer.safetensors の読み出し
-#   pymap3d          : ECEF -> 緯度経度 (Dataset Card の公式例と同じ経路)
-#   reverse_geocoder : 緯度経度から国・行政区分をオフラインで引く
-#   Pillow           : thumbnail から天候の指標を作る
-safetensors>=0.4
-pymap3d>=3.0
-reverse_geocoder>=1.5
-Pillow>=10.0
+certifi==2026.7.22
+    # via requests
+charset-normalizer==3.5.1
+    # via requests
+colorama==0.4.6 ; sys_platform == 'win32'
+    # via pytest
+contourpy==1.3.2 ; python_full_version < '3.11'
+    # via matplotlib
+contourpy==1.3.3 ; python_full_version >= '3.11'
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
+exceptiongroup==1.3.1 ; python_full_version < '3.11'
+    # via pytest
+fonttools==4.63.0
+    # via matplotlib
+idna==3.19
+    # via requests
+iniconfig==2.3.0
+    # via pytest
+jinja2==3.1.6
+    # via pycapnp
+kiwisolver==1.5.0
+    # via matplotlib
+markupsafe==3.0.3
+    # via jinja2
+matplotlib==3.10.9 ; python_full_version < '3.11'
+    # via near-miss-filtering
+matplotlib==3.11.1 ; python_full_version >= '3.11'
+    # via near-miss-filtering
+numpy==2.2.6 ; python_full_version < '3.11'
+    # via
+    #   contourpy
+    #   matplotlib
+    #   near-miss-filtering
+    #   pandas
+    #   scipy
+numpy==2.4.6 ; python_full_version == '3.11.*'
+    # via
+    #   contourpy
+    #   matplotlib
+    #   near-miss-filtering
+    #   pandas
+    #   scipy
+numpy==2.5.2 ; python_full_version >= '3.12'
+    # via
+    #   contourpy
+    #   matplotlib
+    #   near-miss-filtering
+    #   pandas
+    #   scipy
+packaging==26.3
+    # via
+    #   matplotlib
+    #   pytest
+pandas==2.3.3 ; python_full_version < '3.11'
+    # via near-miss-filtering
+pandas==3.0.5 ; python_full_version >= '3.11'
+    # via near-miss-filtering
+pillow==12.3.0
+    # via matplotlib
+pluggy==1.6.0
+    # via pytest
+pycapnp==2.2.4
+    # via near-miss-filtering
+pygments==2.21.0
+    # via pytest
+pyparsing==3.3.2
+    # via matplotlib
+pytest==9.1.1
+    # via near-miss-filtering
+python-dateutil==2.9.0.post0
+    # via
+    #   matplotlib
+    #   pandas
+pytz==2026.3.post1 ; python_full_version < '3.11'
+    # via pandas
+pyyaml==6.0.3
+    # via near-miss-filtering
+requests==2.34.2
+    # via near-miss-filtering
+scipy==1.15.3 ; python_full_version < '3.11'
+    # via near-miss-filtering
+scipy==1.17.1 ; python_full_version == '3.11.*'
+    # via near-miss-filtering
+scipy==1.18.1 ; python_full_version >= '3.12'
+    # via near-miss-filtering
+six==1.17.0
+    # via python-dateutil
+tomli==2.4.1 ; python_full_version < '3.11'
+    # via pytest
+typing-extensions==4.16.0 ; python_full_version < '3.11'
+    # via exceptiongroup
+tzdata==2026.3 ; python_full_version < '3.11' or sys_platform == 'emscripten' or sys_platform == 'win32'
+    # via pandas
+urllib3==2.7.0
+    # via requests
+zstandard==0.25.0
+    # via near-miss-filtering

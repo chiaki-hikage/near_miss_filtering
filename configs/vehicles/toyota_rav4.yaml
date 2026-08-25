@@ -30,6 +30,16 @@ geometry:
   # 実測ではなく仮定である。TSS2 と同じ扱いにして横断で比べられるようにしてある。
   center_to_front_m: 1.1704
 
+  # beta のセンサ雑音。直進区間の beta の散らばりを速度で分けて
+  #     sigma_beta(v) = sqrt( (l_r*sigma_r/v)^2 + (k*sigma_ay)^2 )
+  # に当てはめて求めた (scripts/calibrate_beta_noise.py)。
+  # 横滑りフィルタの 1 次判定は、この式で割った beta_sigma を使う。
+  # deg で固定すると 1/v のぶんだけ低速側が雑音で埋まるため。
+  # 実測: comma2k19 Chunk_1 131 セグメント / 直進 59,879 点 / 残差 rms 0.010 deg
+  yaw_rate_noise_dps: 0.3125
+  accel_y_noise_mps2: 0.1681
+
+
 # raw_can から復号する信号。
 #   start_bit / length は DBC の Motorola (@0) 表記のまま。
 #   sign: 実測で判明した符号補正。物理的に正しい向きへ直すために掛ける係数。

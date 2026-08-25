@@ -38,13 +38,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
-
 import _bootstrap  # noqa: F401
+
+from near_miss import plotting
+
+# バックエンドと日本語フォントは OS で変わる。near_miss.plotting に閉じ込めてある。
+plotting.setup()
+
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
 from near_miss.config import (
     DEFAULT_DETECTION,
@@ -60,7 +62,6 @@ from near_miss.scoring import build_candidates
 from near_miss.sources import car_segments_source, comma2k19_source
 from near_miss.signals import moving_average, to_grid, window_samples
 
-plt.rcParams["font.family"] = ["Hiragino Sans", "Arial Unicode MS", "DejaVu Sans"]
 plt.rcParams["axes.grid"] = True
 plt.rcParams["grid.alpha"] = 0.3
 

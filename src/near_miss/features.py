@@ -268,6 +268,63 @@ def sideslip_model_deg(
     return out
 
 
+def sideslip_expected_deg(
+    v_mps: np.ndarray,
+    yaw_expected_dps: np.ndarray,
+    l_r: float,
+    k: float,
+    min_speed_mps: float,
+) -> np.ndarray:
+    """舵角だけから期待される重心横滑り角 [deg]。
+
+    定常の線形単軌道モデルでは、舵で決まるヨーレート r_exp に対して
+    横加速度は a_y = v * r_exp になるので、beta の式に代入して
+
+        beta_exp = r_exp * (l_r / v  -  k * v)
+
+    となる。実測のヨーレート・横加速度から出す sideslip_model_deg との差
+    (beta_excess) が、「舵で説明できない横滑り」にあたる。
+
+    括弧の中は v = sqrt(l_r / k) でゼロになる。この速度では舵が変わっても
+    beta_exp が動かないので、差 beta_excess の感度も落ちる。
+    ヨー応答の乖離 (yaw_residual_sigma) と併せて見ること。
+    """
+    v = np.asarray(v_mps, dtype=float)
+    vv = np.where(v > 0, v, np.nan)
+    out = np.degrees(np.deg2rad(yaw_expected_dps) * (l_r / vv - k * v))
+    out[~(v >= min_speed_mps)] = np.nan
+    return out
+
+
+def sideslip_noise_deg(
+    v_mps: np.ndarray,
+    l_r: float,
+    k: float,
+    yaw_noise_dps: float,
+    ay_noise_mps2: float,
+) -> np.ndarray:
+    """beta の推定に載るセンサ雑音の標準偏差 [deg]。
+
+    beta = l_r * r / v - k * a_y なので、r と a_y の雑音が独立なら
+
+        sigma_beta(v) = sqrt( (l_r * sigma_r / v)^2 + (k * sigma_ay)^2 )
+
+    第 1 項が 1/v で効くため、低速では同じ beta でも意味が変わる。
+    閾値を deg で固定すると低速側だけが雑音で埋まるので、
+    この式で割った sigma 単位の量 (beta_sigma) を判定に使う。
+
+    sigma_r / sigma_ay は車種設定の geometry に置く。straight 走行から
+    実測して求める (scripts/calibrate_beta_noise.py)。
+
+    ここに入るのはサンプルごとのばらつきだけで、モデル自体の誤差
+    (KIT 実測との照合で 0.99 deg) は含まない。絶対値が本物の横滑りに
+    当たるかどうかは、別にモデル誤差の水準で判断すること。
+    """
+    v = np.asarray(v_mps, dtype=float)
+    vv = np.where(v > 0, v, np.nan)
+    return np.degrees(np.hypot(l_r * np.deg2rad(yaw_noise_dps) / vv, k * ay_noise_mps2))
+
+
 def counter_steer(
     yaw_rate_dps: np.ndarray,
     steer_rate_dps: np.ndarray,
@@ -942,6 +999,27 @@ def compute_features(
                 df["v_mps"].to_numpy(), df["yaw_rate_dps"].to_numpy(),
                 df["ay_can_mps2"].to_numpy(), l_r, k, cfg["physics"]["min_speed_mps"],
             )
+            # 舵で期待される横滑り角と、その差。差が「舵で説明できない横滑り」。
+            if "yaw_expected_dps" in df:
+                df["beta_expected_deg"] = sideslip_expected_deg(
+                    df["v_mps"].to_numpy(), df["yaw_expected_dps"].to_numpy(),
+                    l_r, k, cfg["physics"]["min_speed_mps"],
+                )
+                df["beta_excess_deg"] = df["beta_model_deg"] - df["beta_expected_deg"]
+            # beta の変化率。急に横滑りが立ち上がる過渡を捉える。
+            # beta は適用範囲の外で NaN なので、そこは NaN のまま残る。
+            df["beta_rate_dps"] = moving_average(
+                derivative(df["beta_model_deg"].to_numpy(), dt),
+                window_samples(cfg["auxiliary"]["window_s"], gs.rate_hz),
+            )
+            # センサ雑音で割った値。低速ほど beta の雑音が大きいので、
+            # deg で固定した閾値では速度域ごとに厳しさが変わってしまう。
+            s_yaw = vehicle.geometry_value("yaw_rate_noise_dps")
+            s_ay = vehicle.geometry_value("accel_y_noise_mps2")
+            if s_yaw is not None and s_ay is not None:
+                noise = sideslip_noise_deg(df["v_mps"].to_numpy(), l_r, k, s_yaw, s_ay)
+                df["beta_noise_deg"] = noise
+                df["beta_sigma"] = df["beta_model_deg"] / noise
 
     # 独立した横加速度センサとの差。片方だけがおかしくなれば開く
     if "ay_can_mps2" in df and "ay_kin_mps2" in df:

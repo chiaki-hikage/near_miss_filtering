@@ -291,32 +291,32 @@ ABS / ESC / TCS を実データで確かめるには、降雨・降雪路や、�
 
 ```bash
 # capnp スキーマを取る (最初の一度だけ)
-python scripts/fetch_cereal_schema.py
+uv run python scripts/fetch_cereal_schema.py
 
 # 車種の一覧を見る
-python scripts/fetch_car_segments.py --list
+uv run python scripts/fetch_car_segments.py --list
 
 # 取得量を確かめてから取る
-python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
-python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
+uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
+uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
 
 # 整合性を確認する
-python scripts/check_signal_parity.py --platform TOYOTA_RAV4_TSS2
+uv run python scripts/check_signal_parity.py --platform TOYOTA_RAV4_TSS2
 
 # 検出を回す
-python scripts/run_detection.py raw_data/comma_car_segments \
+uv run python scripts/run_detection.py raw_data/comma_car_segments \
     --dataset comma_car_segments --platform TOYOTA_RAV4_TSS2 --out out/rav4_tss2
 
 # 数百〜数千セグメントをスクリーニングする (取得と処理を重ねて流す)
-python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --dry-run
-python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --out out/screen_rav4_tss2 \
+uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --dry-run
+uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --out out/screen_rav4_tss2 \
     --discard-cache          # 処理の済んだ rlog をその場で消す
 
 # 類型ごとに代表候補を選んでプロットする
-python scripts/pick_cases.py out/screen_rav4_tss2 --top 2 --plot --span 20
+uv run python scripts/pick_cases.py out/screen_rav4_tss2 --top 2 --plot --span 20
 
 # 1 件だけ細かく見る (前後のセグメントも繋いで、位置を指定して拡大)
-python scripts/plot_segment.py raw_data/comma_car_segments \
+uv run python scripts/plot_segment.py raw_data/comma_car_segments \
     --dataset comma_car_segments -s "63e74ebb84173067|0000009c--84e520ce41/2" \
     --context 1 --focus 2@25.5 --span 20
 ```

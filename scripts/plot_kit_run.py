@@ -17,16 +17,15 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 
-import matplotlib
+from near_miss import plotting
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
+# バックエンドと日本語フォントは OS で変わる。near_miss.plotting に閉じ込めてある。
+plotting.setup()
 
-from near_miss.io import kit_msdm as kit
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
-plt.rcParams["font.family"] = ["Hiragino Sans", "Arial Unicode MS", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+from near_miss.io import kit_msdm as kit  # noqa: E402
 
 BETA_MARKS = (5.0, 10.0)          # 参考線 [deg]
 HILIGHT = 10.0                    # これを超える区間に色を敷く

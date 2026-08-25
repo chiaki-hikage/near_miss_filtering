@@ -1,0 +1,41 @@
+# KIT Multi-Surface Driving Maneuvers の試験車両。
+#
+# 抽出対象のデータセットではなく、横滑りフィルタの物差しとして使う。
+# β が光学式センサで実測されているので、「本物の横滑りを拾えるか」を
+# 確かめられる唯一のデータになっている (docs/kit_msdm.md)。
+#
+# 諸元はすべてデータセット同梱の parameter.m の値をそのまま書き写した。
+# 実測の当てはめではないので、comma の車種設定とは性質が違う。
+#   vehicle.l = 3, vehicle.l_f = 1.563, vehicle.l_r = 1.437
+#   vehicle.m = 2254, tire.C_f = tire.C_r = 234008
+
+name: kit_msdm
+description: "KIT Multi-Surface Driving Maneuvers の試験車両 (検証用)"
+dongle_ids: []
+platforms: []
+
+geometry:
+  wheelbase_m: 3.0
+  # delta_stm_rad はタイヤ切れ角そのもの (ステアリングホイール角ではない)。
+  # io/kit_msdm.py が deg にして steer_deg に入れるので、ギヤ比は 1 にする。
+  steer_ratio: 1.0
+  # Kus = m/L * (l_r/C_f - l_f/C_r) = 2254/3 * (1.437 - 1.563)/234008
+  # l_r < l_f なので負、つまりオーバーステア特性の車両。
+  understeer_gradient: -0.00040454
+  steer_offset_deg: 0.0
+  track_width_m: 1.65
+  center_to_front_m: 1.563
+  # ヨー残差の標準偏差は当てはめていない。横滑りフィルタの判定には
+  # 使わないので null のままにする (features.py は 1.0 として扱う)。
+  yaw_residual_std_dps: null
+
+  # β のセンサ雑音。KIT の計測系 (光学式 + 1000 Hz) は車載 CAN より
+  # はるかに静かだが、ここでは **Toyota の CAN で実測した値** を入れてある。
+  # 物差しとしての目的は「CAN 相当の環境でも本物の横滑りを拾えるか」なので、
+  # 雑音を小さく見積もると 1 次の閾値が甘くなり、試験にならない。
+  # 実際の KIT の雑音より大きい値を置くことで、判定を厳しい側に倒している。
+  yaw_rate_noise_dps: 0.3204
+  accel_y_noise_mps2: 0.2059
+
+# CAN は収録されていない。復号する信号は無い。
+signals: {}

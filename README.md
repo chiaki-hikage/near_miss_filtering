@@ -50,10 +50,20 @@ scripts/
   plot_segment.py          1 セグメントの時系列を描く (--dataset / --context / --focus)
   inspect_segment.py       1 セグメントの中間結果と閾値までの余裕を見る
   validate_signals.py      車種設定の符号・前提を実データで検証する
+  screen_sideslip.py       横滑り候補の 2 段抽出を実データに通す
+  calibrate_beta_noise.py  横滑り角に載るセンサ雑音を直進区間から実測する
+  validate_sideslip_filter.py  横滑りフィルタの再現率を KIT MSDM で測る
+  check_env.py             実行環境が整っているかを確かめる
+  demo_sideslip.sh         横滑りフィルタを 1 コマンドで動かす
 docs/
+  environment.md         Mac / AWS EC2 (ARM Linux) での構築・実行・出力確認
   comma2k19_data.md      データセットの構成、単位・周期、取り扱い上の注意
   comma_car_segments.md  commaCarSegments の構成と、層の分け方・整合性の確認結果
   near_miss_filters.md   各ヒヤリハット候補の検出条件 (暫定)
+  near_miss_filters_summary.md  イベント定義の一覧 (読むための要約)
+  sideslip_filter.md     横滑り候補の 2 段抽出 — 設計、閾値の根拠、実データでの結果
+  kit_msdm.md            横滑り物理の物差し (β の実測がある閉鎖路データ)
+  datasets.md            データセットの比較表
   signals_rav4.md        信号ごとの検証結果、単軌道モデルの諸元、使わない信号の理由
 ```
 
@@ -90,7 +100,7 @@ Chunk_3 以降は Honda Civic なので現在の対象外。
 demo split を取得して、Chunk_N.zip と同じディレクトリ構成に展開する。
 
 ```bash
-python scripts/fetch_demo_dataset.py --out data/comma2k19_demo
+uv run python scripts/fetch_demo_dataset.py --out data/comma2k19_demo
 ```
 
 64 セグメント (64 分、RAV4、21 ドライブ) が 382 MB で展開される。
@@ -100,8 +110,9 @@ python scripts/fetch_demo_dataset.py --out data/comma2k19_demo
 ### チャンクを取得する
 
 ```bash
-pip install huggingface_hub
-huggingface-cli download commaai/comma2k19 raw_data/Chunk_1.zip \
+# huggingface-cli を一時的に用意して使う (環境を汚さない)
+uv tool run --from huggingface_hub huggingface-cli \
+    download commaai/comma2k19 raw_data/Chunk_1.zip \
     --repo-type dataset --local-dir data/
 
 unzip data/raw_data/Chunk_1.zip -d data/
@@ -131,30 +142,30 @@ processed_log は 6.8 MB)。CAN しか使わないので、展開後に video.he
 
 ```bash
 # capnp スキーマを取る (最初の一度だけ)
-python scripts/fetch_cereal_schema.py
+uv run python scripts/fetch_cereal_schema.py
 
 # 車種の一覧とセグメント数を見る
-python scripts/fetch_car_segments.py --list
+uv run python scripts/fetch_car_segments.py --list
 
 # 取得量を確かめてから取る (3 ルート × 連続 5 セグメント)
-python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
-python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
+uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
+uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
 
 # comma2k19 との信号・単位・周期の整合性を確認する
-python scripts/check_signal_parity.py --platform TOYOTA_RAV4_TSS2
+uv run python scripts/check_signal_parity.py --platform TOYOTA_RAV4_TSS2
 
 # 検出を回す
-python scripts/run_detection.py raw_data/comma_car_segments \
+uv run python scripts/run_detection.py raw_data/comma_car_segments \
     --dataset comma_car_segments --platform TOYOTA_RAV4_TSS2 --out out/rav4_tss2
 
 # 数百〜数千セグメントをスクリーニングする
-python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --dry-run
-python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --out out/screen \
+uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --dry-run
+uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 500 --out out/screen \
     --discard-cache --resume
 
 # 類型ごとに代表候補を選び、時系列プロットまで作る
-python scripts/pick_cases.py out/screen --top 3
-python scripts/pick_cases.py out/screen --top 2 --plot --span 20
+uv run python scripts/pick_cases.py out/screen --top 3
+uv run python scripts/pick_cases.py out/screen --top 2 --plot --span 20
 ```
 
 `pick_cases.py` は候補を 5 つの類型に振り分ける。severity 順に並べると
@@ -174,26 +185,35 @@ python scripts/pick_cases.py out/screen --top 2 --plot --span 20
 
 ## 使い方
 
+環境の作り方 (Mac / AWS EC2 の両方) は [docs/environment.md](docs/environment.md)。
+
 ```bash
-pip install -r requirements.txt
+# 依存を入れる。Python も uv が用意する (.python-version で 3.10 に固定)
+uv sync --extra viz --extra dev
+
+# 環境が整っているかを確認する
+uv run python scripts/check_env.py --data
+
+# 横滑り 2 段フィルタを 1 コマンドで動かす (30 セグメント / 約 30 秒)
+./scripts/demo_sideslip.sh
 
 # 抽出を実行する (チャンクのディレクトリを指定)
-python scripts/run_detection.py raw_data/Chunk_1 --out out/chunk1
+uv run python scripts/run_detection.py raw_data/Chunk_1 --out out/chunk1
 
 # 動画確認用のシートを作る
-python scripts/make_review_list.py out/chunk1 raw_data/Chunk_1 --top 30
+uv run python scripts/make_review_list.py out/chunk1 raw_data/Chunk_1 --top 30
 
 # 1 セグメントの中身を見る (クリップ名は review.md の表記をそのまま貼れる)
-python scripts/plot_segment.py raw_data/Chunk_1 -s "b0c9d2329ad1606b|2018-08-17--14-55-39/1"
-python scripts/plot_segment.py --list-panels
+uv run python scripts/plot_segment.py raw_data/Chunk_1 -s "b0c9d2329ad1606b|2018-08-17--14-55-39/1"
+uv run python scripts/plot_segment.py --list-panels
 
 # 1 セグメントを詳しく見る。候補が 0 件のときの切り分けに使う
-python scripts/inspect_segment.py /path/to/Chunk_1 --index 40 --dump-csv out/ts.csv
+uv run python scripts/inspect_segment.py /path/to/Chunk_1 --index 40 --dump-csv out/ts.csv
 
 # 車種設定の前提が崩れていないか確かめる (新しいチャンクを扱う前に必ず)
-python scripts/validate_signals.py /path/to/Chunk_1 --max-segments 5
+uv run python scripts/validate_signals.py /path/to/Chunk_1 --max-segments 5
 
-python -m pytest tests -q
+uv run python -m pytest -q
 ```
 
 ### 出力
