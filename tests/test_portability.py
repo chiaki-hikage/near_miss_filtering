@@ -109,3 +109,119 @@ def test_plotting_setup_is_headless_and_reports_font():
     assert isinstance(info["japanese_fonts"], list)
     # フォントが 1 つも無い環境でも None を返すだけで、例外にはしない。
     assert chosen is None or chosen in plotting.FONT_CANDIDATES
+
+
+# --- ドライブ単位の並列実行 -------------------------------------------------
+
+
+def test_parallel_uses_spawn_and_no_os_branch():
+    """並列の起動方式が OS で変わらないこと。
+
+    macOS の既定は spawn、Linux の既定は fork。既定に任せると
+    同じコードでも OS で挙動が変わるので、spawn に固定してある。
+    """
+    src = (REPO / "src" / "near_miss" / "parallel.py").read_text(encoding="utf-8")
+    assert 'get_context("spawn")' in src
+    assert "get_context()" not in src
+    for marker in ("sys.platform", "platform.system", "os.uname", "darwin", "linux"):
+        assert marker not in src, f"parallel.py に OS 分岐らしきもの: {marker}"
+
+
+def test_drive_tasks_cover_every_segment_exactly_once():
+    """タスクへの分割で取りこぼしも重複も出ないこと。"""
+    from near_miss.io.canonical import SegmentRef
+    from near_miss.parallel import build_tasks
+
+    refs = [
+        SegmentRef(path=Path(f"/x/{d}/{i}"), dongle_id="d", drive_id=d, index=i)
+        for d, n in (("A", 3), ("B", 1), ("C", 5))
+        for i in range(n)
+    ]
+    tasks = build_tasks(refs)
+    assert [t.order for t in tasks] == list(range(len(tasks)))
+    assert len({t.drive_id for t in tasks}) == len(tasks)     # ドライブは分割されない
+    flat = [r for t in tasks for r in t.refs]
+    assert len(flat) == len(refs) and {id(r) for r in flat} == {id(r) for r in refs}
+
+
+def test_drive_tasks_keep_contiguous_segments_together():
+    """連番のセグメントが別のタスクに散らばらないこと。
+
+    散らばると 60 秒境界を跨ぐ事象の連結が壊れて、結果が変わる。
+    """
+    from near_miss.io.canonical import SegmentRef
+    from near_miss.parallel import build_tasks
+
+    refs = [
+        SegmentRef(path=Path(f"/x/{i}"), dongle_id="d", drive_id="A", index=i)
+        for i in range(6)
+    ]
+    tasks = build_tasks(refs)
+    assert len(tasks) == 1
+    assert [r.index for r in tasks[0].refs] == list(range(6))
+
+
+def test_resolve_workers():
+    import os
+
+    from near_miss.parallel import resolve_workers
+
+    assert resolve_workers(4) == 4
+    assert resolve_workers(1) == 1
+    assert resolve_workers(0) == max(1, os.cpu_count() or 1)
+    assert resolve_workers(None) == max(1, os.cpu_count() or 1)
+
+
+def _cached_drives(limit: int):
+    """手元にあるセグメントから先頭 limit ドライブ分のタスクを作る。無ければ空。"""
+    from near_miss.io import comma_car_segments as ccs
+    from near_miss.parallel import build_tasks
+
+    if not (ccs.DEFAULT_CACHE / "segments").is_dir():
+        return []
+    refs = ccs.find_segments(ccs.DEFAULT_CACHE, "TOYOTA_RAV4_TSS2")
+    return build_tasks(refs)[:limit]
+
+
+@pytest.mark.slow
+def test_parallel_matches_sequential_on_real_data():
+    """worker=1 と worker=2 で結果が完全に一致すること。
+
+    実データが要るので、キャッシュが無ければ飛ばす。
+    網羅的な突き合わせは scripts/benchmark_workers.py が 2,000 セグメントで行う。
+    """
+    from near_miss.config import (
+        DEFAULT_DETECTION,
+        DEFAULT_VEHICLE_DIR,
+        find_vehicle_config_for_platform,
+        load_vehicle_configs,
+        load_yaml,
+    )
+    from near_miss.parallel import DATASET_CAR_SEGMENTS, map_drives
+
+    tasks = _cached_drives(4)
+    if not tasks:
+        pytest.skip("commaCarSegments のキャッシュがありません")
+
+    cfg = load_yaml(DEFAULT_DETECTION)
+    vehicle = find_vehicle_config_for_platform(
+        "TOYOTA_RAV4_TSS2", load_vehicle_configs(DEFAULT_VEHICLE_DIR)
+    )
+
+    def run(workers):
+        return list(map_drives(tasks, cfg, vehicle, DATASET_CAR_SEGMENTS, workers=workers))
+
+    seq, par = run(1), run(2)
+
+    # 返る順が投入順であること。ここが崩れると候補の行の並びが worker 数で変わる。
+    assert [o.order for o in seq] == [o.order for o in par] == [t.order for t in tasks]
+    assert [o.drive_id for o in seq] == [o.drive_id for o in par]
+
+    for a, b in zip(seq, par):
+        assert a.counts == b.counts
+        assert len(a.blocks) == len(b.blocks)
+        for ba, bb in zip(a.blocks, b.blocks):
+            assert ba.spans == bb.spans
+            assert ba.n_segments == bb.n_segments
+            # 候補は dataclass なので、値がそのまま比較できる
+            assert ba.candidates == bb.candidates

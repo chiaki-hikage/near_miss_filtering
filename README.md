@@ -55,6 +55,7 @@ scripts/
   validate_sideslip_filter.py  横滑りフィルタの再現率を KIT MSDM で測る
   check_env.py             実行環境が整っているかを確かめる
   demo_sideslip.sh         横滑りフィルタを 1 コマンドで動かす
+  benchmark_workers.py     並列数ごとの所要時間を測り、結果が同じことを確かめる
 docs/
   environment.md         Mac / AWS EC2 (ARM Linux) での構築・実行・出力確認
   comma2k19_data.md      データセットの構成、単位・周期、取り扱い上の注意

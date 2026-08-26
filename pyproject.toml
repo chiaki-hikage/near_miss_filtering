@@ -37,6 +37,9 @@ dev = ["pytest>=7.0"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: 実データとプロセス起動が要るもの。'-m \"not slow\"' で外せる",
+]
 
 [tool.uv]
 # 既定でこれらを入れる。EC2 でも Mac でも同じものが入るようにしておく。

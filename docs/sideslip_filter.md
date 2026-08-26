@@ -430,6 +430,10 @@ uv run python scripts/calibrate_beta_noise.py --platform TOYOTA_RAV4_TSS2 --limi
 # 2. 抽出
 uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --out out/sideslip_rav4_tss2
 
+#    ドライブ単位で並列にする (判定は変わらない。Mac M4 Pro で 8 並列 6.5 倍)
+uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --workers 8 \
+    --out out/sideslip_rav4_tss2
+
 # 3. 適用範囲を変えた感度確認
 uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --min-speed 3 --out out/sideslip_low
 

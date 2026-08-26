@@ -47,13 +47,14 @@ from near_miss.io import comma2k19, comma_car_segments as ccs
 from near_miss.io.canonical import concat_segments, group_by_drive
 from near_miss.pipeline import _annotate_segment, split_contiguous
 from near_miss.signals import to_grid
-from near_miss.sideslip import (
-    CHECKS,
-    FilterCounts,
-    candidates_to_frame,
-    find_sideslip_candidates,
-    stage1_mask,
+from near_miss.parallel import (
+    DATASET_CAR_SEGMENTS,
+    DATASET_COMMA2K19,
+    build_tasks,
+    map_drives,
+    resolve_workers,
 )
+from near_miss.sideslip import CHECKS, FilterCounts, candidates_to_frame
 
 # 1 次を通ったサンプルの明細に残す列。なぜ通り、なぜ落ちたかを後から追えるように。
 DUMP_COLUMNS = (
@@ -82,6 +83,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", type=Path, default=Path("out/sideslip"))
     p.add_argument("--config", type=Path, default=DEFAULT_DETECTION)
     p.add_argument("--vehicles", type=Path, default=DEFAULT_VEHICLE_DIR)
+    p.add_argument("--workers", type=int, default=1,
+                   help="ドライブ単位の並列数。1 で逐次 (既定)。0 以下で CPU 数。"
+                        "判定は変わらない。docs/environment.md の「並列実行」を参照")
     p.add_argument("--min-speed", type=float, default=None,
                    help="適用範囲の下限を設定から変えて試す (既定は configs/detection.yaml)")
     p.add_argument("--dump-stage1", action="store_true",
@@ -116,8 +120,7 @@ def main() -> int:
                 print(f"注意: 選ばれた {len(want)} 本のうち手元にあるのは {len(refs)} 本です。"
                       f"\n      先に scripts/fetch_car_segments.py {args.platform} "
                       f"--limit {args.limit} --per-route {args.per_route} を実行してください。")
-        load = lambda ref: ccs.load_segment(ref, vehicle, with_raw_can=True)  # noqa: E731
-        dataset, label, video_fps = ccs.DATASET, args.platform, None
+        dataset, label, video_fps = DATASET_CAR_SEGMENTS, args.platform, None
     else:
         refs = comma2k19.find_segments(args.comma2k19)
         if not refs:
@@ -125,8 +128,7 @@ def main() -> int:
         vehicle = find_vehicle_config(refs[0].dongle_id, vehicles)
         if vehicle is None:
             raise SystemExit(f"車種設定がありません: dongle={refs[0].dongle_id}")
-        load = lambda ref: comma2k19.load_segment(ref, vehicle, with_raw_can=True)  # noqa: E731
-        dataset, label, video_fps = "comma2k19", str(args.comma2k19), 20.0
+        dataset, label, video_fps = DATASET_COMMA2K19, str(args.comma2k19), 20.0
 
     if vehicle.sideslip_ay_coeff() is None or vehicle.center_to_rear_m() is None:
         raise SystemExit(f"{vehicle.name} は beta を出せません (geometry が未確定)")
@@ -151,12 +153,16 @@ def main() -> int:
     cfg_hash = config_hash(cfg, [v.raw for v in vehicles])
     s = cfg["sideslip"]
 
+    workers = resolve_workers(args.workers)
+
     print(f"データ   : {dataset} / {label}")
     print(f"車種設定 : {vehicle.name}")
     print(f"セグメント: {len(refs)}")
     print(f"設定     : 適用 v>={s['min_speed_mps']} m/s / "
           f"1次 |beta|>={s['stage1']['min_beta_deg']} deg かつ "
           f">={s['stage1']['min_beta_sigma']} sigma")
+    print(f"並列     : ドライブ単位 worker {workers}"
+          + ("  (逐次)" if workers == 1 else ""))
     print(f"config_hash: {cfg_hash}\n")
 
     total = FilterCounts()
@@ -164,50 +170,34 @@ def main() -> int:
     dumps: list[pd.DataFrame] = []
     n_seg, n_block, t0 = 0, 0, time.perf_counter()
 
-    for drive_id, drefs in group_by_drive(refs).items():
-        for block in split_contiguous(drefs):
-            segs, spans = [], []
-            for ref in block:
-                try:
-                    sd = load(ref)
-                except Exception as exc:
-                    print(f"  読み出し失敗 {ref.segment_id}: {exc}")
-                    continue
-                a, b = sd.t_span
-                if not (np.isfinite(a) and np.isfinite(b)):
-                    continue
-                spans.append((ref.index, float(a), float(b)))
-                segs.append(sd)
-            if not segs:
-                continue
-            merged = concat_segments(segs)
-            gs = to_grid(merged, cfg)
-            if gs.df.empty:
-                continue
-            gs.meta["segment_spans"] = spans
-            gs = compute_features(gs, cfg, radar=merged.radar, vehicle=vehicle)
-
-            cands, counts = find_sideslip_candidates(gs, cfg)
-            total.add(counts)
-            n_seg += len(segs)
+    # ドライブ単位に分けて流す。1 ドライブの中は連番を連結してから処理するので、
+    # 60 秒境界を跨ぐ事象の扱いは逐次実行と変わらない。
+    tasks = build_tasks(refs)
+    outcomes = map_drives(
+        tasks, cfg, vehicle, dataset,
+        workers=workers,
+        dump_stage1=args.dump_stage1,
+        dump_columns=DUMP_COLUMNS,
+    )
+    # 結果は投入順に返ってくる。並べ替えないこと (worker 数で行の並びが変わる)。
+    for out in outcomes:
+        for msg in out.errors:
+            print(f"  {msg}")
+        total.add(out.counts)
+        for blk in out.blocks:
+            n_seg += blk.n_segments
             n_block += 1
-
-            if cands:
-                f = candidates_to_frame(cands, cfg_hash)
-                f = _annotate_segment(f, spans, video_fps)
-                f.insert(0, "drive_id", drive_id)
+            if blk.candidates:
+                f = candidates_to_frame(blk.candidates, cfg_hash)
+                f = _annotate_segment(f, blk.spans, video_fps)
+                f.insert(0, "drive_id", out.drive_id)
                 f.insert(0, "dataset", dataset)
                 cand_frames.append(f)
-            if args.dump_stage1:
-                m1, _ = stage1_mask(gs.df, cfg)
-                if m1.any():
-                    cols = [c for c in DUMP_COLUMNS if c in gs.df.columns]
-                    d = gs.df.loc[m1, cols].copy()
-                    d.insert(0, "drive_id", drive_id)
-                    dumps.append(d)
-            if n_block % 50 == 0:
-                print(f"  {n_seg} セグメント / {time.perf_counter() - t0:.0f} 秒 / "
-                      f"候補 {sum(len(f) for f in cand_frames)} 件", flush=True)
+            if blk.dump is not None:
+                dumps.append(blk.dump)
+        if n_block % 50 == 0 and n_block:
+            print(f"  {n_seg} セグメント / {time.perf_counter() - t0:.0f} 秒 / "
+                  f"候補 {sum(len(f) for f in cand_frames)} 件", flush=True)
 
     args.out.mkdir(parents=True, exist_ok=True)
     cd = pd.concat(cand_frames, ignore_index=True) if cand_frames else pd.DataFrame()
@@ -222,6 +212,7 @@ def main() -> int:
         "run_at": datetime.now(timezone.utc).isoformat(),
         "dataset": dataset, "label": label, "vehicle": vehicle.name,
         "config_hash": cfg_hash, "n_segments": n_seg, "n_blocks": n_block,
+        "workers": workers,
         "elapsed_min": round((time.perf_counter() - t0) / 60, 2),
         "counts": asdict(total),
         "sideslip_config": s,
