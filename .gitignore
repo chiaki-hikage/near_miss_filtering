@@ -8,3 +8,10 @@ data/
 raw_data/
 .venv/
 uv.lock.bak
+
+# 認証情報が紛れ込まないようにする。
+# S3 は IAM Role で使うので、そもそも鍵をここに置く必要は無い
+# (scripts/fetch_from_s3.py は .env の鍵を見つけたら止まる)。
+.env
+.env.local
+.aws/

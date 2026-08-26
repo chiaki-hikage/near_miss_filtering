@@ -6,6 +6,7 @@
 #   ./scripts/demo_sideslip.sh -n 100     # セグメント数を変える
 #   ./scripts/demo_sideslip.sh -y         # 取得の確認を飛ばす (CI / 非対話)
 #   ./scripts/demo_sideslip.sh --no-fetch # 手元にあるぶんだけで動かす
+#   ./scripts/demo_sideslip.sh --from-s3  # EC2: 取得元を指定の S3 バケットにする
 #
 # 全データ (2,000 セグメント / 33 時間 / 約 12 分) は流さない。
 # それをやるときは docs/environment.md の「全件を流す」を見ること。
@@ -17,6 +18,7 @@ PLATFORM="TOYOTA_RAV4_TSS2"
 N=30
 ASSUME_YES=0
 FETCH=1
+FROM_S3=0
 OUT="out/demo_sideslip"
 MB_PER_SEGMENT=1.38          # 実測平均 (scripts/fetch_car_segments.py と同じ値)
 
@@ -25,9 +27,10 @@ while [ $# -gt 0 ]; do
     -n) N="$2"; shift 2 ;;
     -y|--yes) ASSUME_YES=1; shift ;;
     --no-fetch) FETCH=0; shift ;;
+    --from-s3) FROM_S3=1; shift ;;
     --out) OUT="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; shift 2 ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "不明な引数: $1" >&2; exit 2 ;;
   esac
 done
@@ -48,7 +51,11 @@ command -v uv >/dev/null 2>&1 || {
 echo "  uv $(uv --version | awk '{print $2}')"
 
 step "1. 依存の同期 (uv sync)"
-uv sync --extra viz --extra dev
+if [ "$FROM_S3" -eq 1 ]; then
+  uv sync --extra viz --extra dev --extra s3      # boto3 は S3 から取るときだけ
+else
+  uv sync --extra viz --extra dev
+fi
 
 step "2. 環境の確認"
 uv run python scripts/check_env.py --data
@@ -62,6 +69,9 @@ if [ -d "$CACHE/segments" ]; then
   HAVE=$(find "$CACHE/segments" -name 'rlog.zst' | wc -l | tr -d ' ')
 fi
 echo "  手元の rlog: $HAVE 本 (要求 $N 本)"
+if [ "$FROM_S3" -eq 0 ] && [ "$(uname -s)" = "Linux" ] && [ -n "${NEAR_MISS_S3_URI:-}" ]; then
+  echo "  (NEAR_MISS_S3_URI が設定されています。S3 から取るなら --from-s3)"
+fi
 if [ "$HAVE" -lt "$N" ]; then
   if [ "$FETCH" -eq 0 ]; then
     echo "  --no-fetch が指定されています。手元の $HAVE 本で続けます。"
@@ -80,7 +90,13 @@ if [ "$HAVE" -lt "$N" ]; then
       read -r ans
       case "$ans" in [yY]*) ;; *) echo "  中止しました。"; exit 1 ;; esac
     fi
-    uv run python scripts/fetch_car_segments.py "$PLATFORM" --limit "$N" --per-route 10
+    if [ "$FROM_S3" -eq 1 ]; then
+      # EC2: 指定の S3 バケットから取り込む。認証は IAM Role。
+      uv run python scripts/fetch_from_s3.py car-segments \
+        --platform "$PLATFORM" --limit "$N" --per-route 10 -y
+    else
+      uv run python scripts/fetch_car_segments.py "$PLATFORM" --limit "$N" --per-route 10
+    fi
   fi
 fi
 if [ "$N" -lt 1 ]; then

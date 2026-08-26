@@ -11,12 +11,17 @@
 > EC2 では**まだ動かしていない**。この文書は「動かすための手順」であって
 > 「動いた記録」ではない。実際に流したら §8.2 の突き合わせを行い、
 > 結果をこの表に書き足すこと。
+>
+> S3 とのやりとり (§4.4 / §4.5) も**実際の AWS には接続していない**。
+> キーの対応・往復・認証の拒否条件は偽のクライアントで確認済み
+> (`tests/test_s3_sync.py` 48 件) だが、実バケットでの疎通は未確認。
+> 最初は必ず `--dry-run` で件数と容量を確かめること。
 
 ---
 
 ## 1. OS に依存するのはどこか
 
-**判定・抽出の処理は OS に依存しない。** 依存するのは次の 3 点だけで、
+**判定・抽出の処理は OS に依存しない。** 依存するのは次の 4 点だけで、
 いずれも 1 か所に閉じ込めてある。
 
 | 依存するもの | 何が違うか | どこで吸収しているか |
@@ -24,9 +29,15 @@
 | 日本語フォント | mac は Hiragino Sans、Linux は Noto Sans CJK JP など | [`src/near_miss/plotting.py`](../src/near_miss/plotting.py) |
 | matplotlib のバックエンド | 画面の無い Linux では `Agg` が要る | 同上 (`plotting.setup()`) |
 | 標準出力の文字コード | Linux は `LANG` 未設定だと ASCII になり、日本語を出した時点で落ちる | [`scripts/_bootstrap.py`](../scripts/_bootstrap.py) |
+| データの取得元 | EC2 は指定の S3 バケット、Mac はローカルの `raw_data/` | [`src/near_miss/io/s3_sync.py`](../src/near_miss/io/s3_sync.py) (§4.4) |
+
+上 3 つは判定の経路にある。4 つ目 (S3) は**判定の経路には無い**。
+データを `raw_data/` に置くまでの話で、置いたあとの読み出し・判定は
+S3 を使ったかどうかを知らない。
 
 `src/near_miss/` の他のモジュール (`signals` / `features` / `detectors` /
-`sideslip` / `scoring`) は `plotting.py` を **import していない**。
+`sideslip` / `scoring` / `parallel` / `sources`) は `plotting.py` も
+`s3_sync.py` も **import していない** (`tests/test_s3_sync.py` で機械的に確認)。
 横滑りの判定ロジックには一切手を入れていない。
 
 外部コマンドへの依存は `ffmpeg` だけで、これは comma1M の動画切り出し
@@ -66,6 +77,7 @@ EC2 側に C/C++ のツールチェインは要らない。
 | `--extra dev` | pytest | 試験 |
 | `--extra comma1m` | safetensors, pymap3d, reverse_geocoder, Pillow | comma1M を扱うとき |
 | `--extra demo-dataset` | pyarrow | comma2k19 の demo split を取るとき |
+| `--extra s3` | boto3 | **EC2 で S3 とデータをやりとりするとき** (§4.4 / §4.5)。Mac では要らない |
 
 Python は `.python-version` で **3.10** に固定してある。
 uv が無ければ自分で取ってくるので、OS 側の Python は使わない。
@@ -81,6 +93,11 @@ uv が無ければ自分で取ってくるので、OS 側の Python は使わな
 | 種別 | c7g.4xlarge (Graviton3 / arm64 / 16 vCPU / 32 GiB) |
 | OS | Ubuntu 24.04 LTS (arm64) または Amazon Linux 2023 (aarch64) |
 | ディスク | gp3 **50 GB 以上**を推奨 (内訳は §4) |
+| IAM Role | 検証用バケットへの **読み取り専用** (§4.4)。バケットを埋めるときだけ書き込み可のロール (§4.5) |
+
+**アクセスキーはインスタンスに置かない。** インスタンスプロファイル (IAM Role) を
+付けておけば boto3 が自動で拾う。`scripts/fetch_from_s3.py` は静的な鍵が
+使われようとしたら止まる (§4.4)。
 
 メモリは 32 GiB あれば十分すぎる。Mac で 200 セグメントを流したときの
 最大常駐は **382 MB** で、セグメント数を増やしても大きくは伸びない
@@ -124,6 +141,9 @@ cd near_miss_filtering
 
 ```bash
 uv sync --extra viz --extra dev
+
+# データを S3 とやりとりする場合は boto3 も入れる (§4.4 / §4.5)
+uv sync --extra viz --extra dev --extra s3
 ```
 
 `.venv/` が作られ、`uv.lock` のとおりに入る。**`uv.lock` は編集しないこと。**
@@ -159,7 +179,21 @@ near_miss_filtering/
     └── Chunk_1/                       任意 (comma2k19。約 9.7 GB)
 ```
 
-### 4.1 commaCarSegments (必須)
+**この構成は取得元によらず同じ。** 解析側 (`screen_sideslip.py` など) は
+データがどこから来たかを知らない。
+
+| 環境 | 取得元 | 手段 |
+|---|---|---|
+| Mac | 公開元 (HuggingFace / RADAR4KIT) | `fetch_car_segments.py` など。**S3 は使わない** |
+| EC2 | 指定の S3 バケット | `fetch_from_s3.py` (§4.4) |
+
+    公開元 --(§4.1〜4.3)--> raw_data/     ← Mac はここで終わり
+    公開元 --(§4.5 --fetch)--> S3 バケット --(§4.4)--> raw_data/   ← EC2
+
+§4.1〜4.3 が公開元から取る場合。§4.4 が EC2 で S3 から取り込む場合、
+§4.5 がそのバケットを埋める場合。**Mac から EC2 へデータを持っていく経路は用意しない。**
+
+### 4.1 commaCarSegments (公開元から)
 
 取得スクリプトが `raw_data/comma_car_segments/` へ落とす。
 **必ず `--dry-run` で量を確かめてから実行すること。**
@@ -181,7 +215,7 @@ uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-ro
 | 200 | 3.3 h | 276 MB |
 | 2,000 | 33.1 h | **2.8 GB** |
 
-### 4.2 KIT MSDM (任意、強く推奨)
+### 4.2 KIT MSDM (公開元から / 強く推奨)
 
 フィルタが**本物の横滑りを拾えるか**を確かめる唯一のデータ
 ([kit_msdm.md](kit_msdm.md))。RADAR4KIT から取得する。
@@ -191,16 +225,236 @@ uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-ro
 * 展開後 `raw_data/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset/` に
   `*.mat` と `parameter.m` が並ぶ形にする
 
-### 4.3 Mac からそのまま持っていく場合
+### 4.3 comma2k19 (公開元から / 任意)
 
-再取得せずに済ませたいなら rsync でよい。**大小の区別に注意**
-(Mac 側の綴りがそのまま移るので問題は起きないが、手で作り直さないこと)。
+信号の突き合わせ (`check_signal_parity.py`) と、抽出の再確認に使う。
+チャンク 1 本で約 9.7 GB。展開して `raw_data/Chunk_1/` に置く。
+`screen_sideslip.py --comma2k19 raw_data/Chunk_1` のように場所を渡す。
+
+---
+
+### 4.4 EC2: 指定の S3 バケットから取り込む
+
+EC2 では公開元ではなく、**あらかじめ用意した S3 バケット**から `raw_data/` へ
+取り込む。対象は commaCarSegments / KIT MSDM / comma2k19 の 3 つ。
 
 ```bash
-rsync -av --progress \
-  raw_data/comma_car_segments raw_data/kit_msdm \
-  ec2-user@<host>:~/near_miss_filtering/raw_data/
+uv run python scripts/fetch_from_s3.py --show-layout
 ```
+
+> **Mac ではこの経路は使わない。** EC2 の上でないと既定で止まる
+> (疎通確認だけしたいときは `--allow-non-ec2 --dry-run`)。
+
+#### バケット側の置き方
+
+**S3 のキー構成を `raw_data/` の下と 1:1 にする。** これが唯一の取り決めで、
+対応表は [`s3_sync.DATASETS`](../src/near_miss/io/s3_sync.py) の 1 か所にしかない。
+こうしておくと取り込んだあとのパスが従来と同じになり、解析側に手を入れずに済む。
+
+| 名前 | S3 (ルートプレフィックスの下) | 取り込み先 |
+|---|---|---|
+| `car-segments` | `comma_car_segments/` | `raw_data/comma_car_segments/` |
+| `kit-msdm` | `kit_msdm/` | `raw_data/kit_msdm/` |
+| `comma2k19` | `comma2k19/` | `raw_data/` (チャンクが直下に来る) |
+
+ルートプレフィックスを `s3://<バケット>/near_miss/` とした場合の例:
+
+```
+s3://<バケット>/near_miss/comma_car_segments/database.json
+    -> raw_data/comma_car_segments/database.json
+s3://<バケット>/near_miss/comma_car_segments/segments/<dongle>/<route>/<n>/rlog.zst
+    -> raw_data/comma_car_segments/segments/<dongle>/<route>/<n>/rlog.zst
+s3://<バケット>/near_miss/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset/*.mat
+    -> raw_data/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset/*.mat
+s3://<バケット>/near_miss/comma2k19/Chunk_1/<drive>/<n>/processed_log/...
+    -> raw_data/Chunk_1/<drive>/<n>/processed_log/...
+```
+
+バケットにデータを入れる側の手順は §4.5。**Mac から持っていく前提は取らない。**
+
+#### バケットの指定
+
+優先順は **引数 > 環境変数 > 設定ファイル**。
+
+```bash
+uv run python scripts/fetch_from_s3.py car-segments --bucket s3://<バケット>/near_miss
+export NEAR_MISS_S3_URI=s3://<バケット>/near_miss
+```
+
+恒久的に決めるなら [`configs/datasets/s3.yaml`](../configs/datasets/s3.yaml) に
+`uri:` を書く。**このファイルに書いてよいのはバケット名とプレフィックスだけ。**
+
+#### 認証 — IAM Role のみ
+
+インスタンスプロファイル (IAM Role) を付けておけば boto3 が自動で拾う。
+**鍵はコードにも設定ファイルにも `.env` にも置かない。** 次の 2 つで機械的に担保している。
+
+* 解決元が静的な鍵 (環境変数 / `~/.aws/credentials` / `.env`) だと**その場で止まる**
+* リポジトリ内の `.env` / `.env.local` に `AWS_SECRET_ACCESS_KEY` 等があれば止まる
+
+必要な権限は読み取りだけ。書き込み・削除は一切しない。
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::<バケット>",
+      "Condition": {"StringLike": {"s3:prefix": ["near_miss/*"]}} },
+    { "Effect": "Allow", "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::<バケット>/near_miss/*" }
+  ]
+}
+```
+
+同じ AZ / リージョンなら **S3 ゲートウェイ VPC エンドポイント**を作っておくと
+NAT の転送料がかからない。2.8 GB を落とすだけでも効く。
+
+#### 使い方
+
+**必ず `--dry-run` で量を確かめてから実行すること。**
+
+```bash
+# 車種 / route 単位で絞って見積り
+uv run python scripts/fetch_from_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --routes 3 --per-route 10 --dry-run
+
+# 取り込む
+uv run python scripts/fetch_from_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10
+
+# KIT MSDM を丸ごと (約 172 MB)
+uv run python scripts/fetch_from_s3.py kit-msdm
+
+# comma2k19 はチャンク単位 (1 本 約 9.7 GB)
+uv run python scripts/fetch_from_s3.py comma2k19 --chunk Chunk_1 --dry-run
+
+# 3 つまとめて
+uv run python scripts/fetch_from_s3.py all --chunk Chunk_1 --dry-run
+```
+
+`--dry-run` の出力例:
+
+```
+バケット     : s3://<バケット>/near_miss/
+認証         : iam-role  (IAM Role)
+EC2          : はい
+
+データセット : car-segments
+取得元       : s3://<バケット>/near_miss/comma_car_segments/
+取り込み先   : /home/ec2-user/near_miss_filtering/raw_data
+内訳         : 30 セグメント / 3 route
+対象         : 31 ファイル / 50.0 MB
+取得済み     : 0 ファイル
+取得予定     : 31 ファイル / 50.0 MB
+```
+
+| 引数 | 効き |
+|---|---|
+| `--platform` | 車種で絞る。`database.json` を見て決める |
+| `--routes` / `--per-route` | route 単位。**連番のセグメントを選ぶ**ので 60 秒境界の連結が保てる |
+| `--limit` | セグメント数の上限 |
+| `--chunk` | comma2k19 のチャンク |
+| `--dry-run` | 対象と量だけ出す。取り込まない |
+| `--list-files` | 対象を 1 件ずつ出す |
+| `--workers` | 並列ダウンロード数 (既定 8) |
+| `--max-gb` | この量を超えると確認を求める (既定 5 GB)。`-y` で飛ばす |
+
+絞り込みの引数は `fetch_car_segments.py` と同じ意味・同じ選び方
+(`select_segments()` を共有している)。同じ引数なら公開元から取っても
+S3 から取っても**同じセグメントが選ばれる**。
+
+#### 動作上の約束
+
+* **元データを上書きしない。** 大きさが一致するファイルは飛ばす。
+  途中で切れたファイル (大きさが違う) だけ取り直す
+* **途中の残骸を残さない。** `.part` へ書いてから置き換える。失敗したら消す
+* **バケット全体は列挙しない。** commaCarSegments は選んだ route の
+  プレフィックスだけを見る (要求回数 = route 数)
+* **`..` を含むキーは受け付けない。** 取り込み先が `raw_data/` の外に出ない
+* 何度でも流してよい。落ちた続きから再開できる
+
+#### 1 コマンドのデモを S3 経由で
+
+```bash
+./scripts/demo_sideslip.sh --from-s3
+```
+
+`uv sync` に `--extra s3` が付き、取得だけが S3 経由になる。
+**抽出と出力は `--from-s3` の有無で変わらない。**
+
+---
+
+### 4.5 EC2: バケットにデータを入れる
+
+バケットを埋める側の作業。**一度やれば以後は §4.4 だけで済む。**
+`scripts/upload_to_s3.py` が使う対応表は §4.4 と同じ (`s3_sync.DATASETS`) で、
+それを逆向きに使う。対応が 1 か所にしか無いので、**上げた場所と取りに行く場所が
+ずれない**（`tests/test_s3_sync.py` で往復を確認している）。
+
+```bash
+uv run python scripts/upload_to_s3.py --show-layout
+```
+
+#### commaCarSegments — 公開元から取ってそのまま上げる
+
+`--fetch` を付けると、手元に無いセグメントを公開元 (HuggingFace) から取ってから
+上げる。**別のマシンにデータを用意しておく必要がない。**
+
+```bash
+# まず量を確かめる
+uv run python scripts/upload_to_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --fetch --dry-run
+
+# 実行 (公開元から 2.8 GB を取り、そのままバケットへ)
+uv run python scripts/upload_to_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --fetch --max-gb 4
+```
+
+絞り込みの引数は §4.4 および `fetch_car_segments.py` と同じ意味。
+**同じ引数なら、上げる範囲と取りに行く範囲が一致する**（同じ `select_segments()`
+を使っている。`test_upload_selection_matches_fetch_selection` で確認)。
+
+#### KIT MSDM / comma2k19 — 手元にあるものを上げる
+
+この 2 つは公開元からの自動取得を用意していない (§4.2 / §4.3 の手順で
+インスタンス上へ置く)。置いたあとで:
+
+```bash
+uv run python scripts/upload_to_s3.py kit-msdm --dry-run
+uv run python scripts/upload_to_s3.py kit-msdm
+
+uv run python scripts/upload_to_s3.py comma2k19 --chunk Chunk_1 --dry-run
+uv run python scripts/upload_to_s3.py comma2k19 --chunk Chunk_1 -y --max-gb 10
+```
+
+#### 書き込み用の IAM Role は分ける
+
+**取り込み用のロールは読み取り専用のままにしておくこと。** 埋める作業は
+書き込みができる別のロール (別インスタンス、または一時的に付け替え) で行う。
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::<バケット>",
+      "Condition": {"StringLike": {"s3:prefix": ["near_miss/*"]}} },
+    { "Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::<バケット>/near_miss/*" }
+  ]
+}
+```
+
+`s3:DeleteObject` は入れない。このスクリプトは**消さない**。
+
+#### 動作上の約束
+
+* **S3 側に同じ大きさで載っているものは上げ直さない。** 何度流してもよい
+* **大きさが違えば上げ直す。** 途中で切れたものを直せる
+* `.DS_Store` / `Thumbs.db` / `*.part` / `*.tmp` は上げない
+* 削除は一切しない。バケットから消すのは手作業 (`aws s3 rm`)
+* `--max-gb` (既定 5 GB) を超えると確認を求める。`-y` で飛ばす
 
 ---
 
@@ -226,7 +480,10 @@ rsync -av --progress \
 ./scripts/demo_sideslip.sh -n 100        # セグメント数
 ./scripts/demo_sideslip.sh -y            # 取得の確認を飛ばす (非対話)
 ./scripts/demo_sideslip.sh --no-fetch    # 手元にあるぶんだけで動かす
+./scripts/demo_sideslip.sh --from-s3     # EC2: 取得元を S3 にする (§4.4)
 ```
+
+`--from-s3` が変えるのは **4 の取得元だけ**。5 以降の抽出・出力は同じ。
 
 セグメントは `--select catalog` で選んでいる。**手元のキャッシュに何が
 入っていても同じ 30 本が選ばれる**ので、Mac と EC2 で数字を突き合わせられる。
@@ -252,6 +509,10 @@ uv run python scripts/calibrate_beta_noise.py --platform TOYOTA_RAV4_TSS2 --limi
 
 # 図 (matplotlib が要る。--extra viz)
 uv run python scripts/plot_kit_run.py dynamic_driving_cobble_1 --out out/kit_msdm
+
+# EC2: データを S3 から取り込む (§4.4)。まず --dry-run で量を見る
+uv run python scripts/fetch_from_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --dry-run
 ```
 
 ### 全件を流す
@@ -432,15 +693,46 @@ config_hash : 4d8905fa3b
 | `yaw_rate_noise_dps がありません` | 車種設定に beta の雑音が入っていない。`calibrate_beta_noise.py` を先に実行 |
 | `uv run` が `VIRTUAL_ENV` の警告を出す | 別の venv が有効になっている。`deactivate` するか無視してよい |
 | ディスクが足りない | §4 の内訳を見て、要らないデータセットを置かない |
+| `EC2 の上ではありません` | S3 からの取り込みは EC2 限定。Mac はローカルの `raw_data/` を使う。疎通確認だけなら `--allow-non-ec2 --dry-run` |
+| `S3 バケットが指定されていません` | `--bucket` / `NEAR_MISS_S3_URI` / `configs/datasets/s3.yaml` のどれかで指定する (§4.4) |
+| `静的な認証情報 (env) が使われようとしています` | 鍵がインスタンスに置かれている。取り除いて IAM Role を付ける。意図的な場合のみ `--allow-any-credentials` |
+| `AWS の認証情報が見つかりません` | インスタンスに IAM Role が付いていない (§4.4) |
+| `boto3 がありません` | `uv sync --extra s3` |
+| `S3 に無いセグメントが N 件あります` | バケットの中身が `database.json` より少ない。`--list-files` で対象を確認し、上げ直す |
+| `AccessDenied` が出る | IAM ポリシーの `s3:prefix` 条件とバケット側のプレフィックスがずれている (§4.4) |
+| S3 からの取り込みが遅い / 転送料が高い | S3 ゲートウェイ VPC エンドポイントを作る (§4.4)。`--workers` も上げられる |
+| 上げるときに `AccessDenied` | 取り込み用の読み取り専用ロールのままになっている。書き込み可のロールに替える (§4.5) |
+| `database.json がありません` (上げる側) | `--fetch` を付けるか、先に `fetch_car_segments.py --list` |
+| 上げたのに `fetch_from_s3.py` が見つけられない | プレフィックスがずれている。両方で同じ `--bucket` / `NEAR_MISS_S3_URI` を使っているか確認。`--show-layout` で対応を見る |
 
 ---
 
 ## 10. 変更したときに崩れていないか
 
 ```bash
-uv run python -m pytest -q                                    # 115 件
+uv run python -m pytest -q                                    # 175 件
 uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3
 ./scripts/demo_sideslip.sh -n 30 --no-fetch
 ```
 
 この 3 つが通れば、環境と判定の両方が保たれている。
+
+S3 経路を触ったときは追加で:
+
+```bash
+uv run python -m pytest tests/test_s3_sync.py -q               # 48 件、AWS には繋がない
+uv run python scripts/fetch_from_s3.py --show-layout           # 対応表が壊れていないか
+```
+
+`tests/test_s3_sync.py` は次を機械的に見ている。
+
+* S3 のキーが `raw_data/` の既存の構成にそのまま落ちること
+* **上げる場所と取りに行く場所が一致すること** (`key_for` が `dest_for` の逆であること、
+  上げてから別の場所へ取り込むと木も中身も復元されること)
+* 判定に関わるモジュール (`features` / `detectors` / `sideslip` / `scoring` /
+  `signals` / `pipeline` / `parallel` / `sources`) と `screen_sideslip.py` が
+  `s3_sync` も `boto3` も参照していないこと
+* `boto3` が必須依存になっていないこと
+* 静的な鍵を拒み、`.env` の鍵を見つけたら止まること
+* 既にあるファイルを取り直さない / 上げ直さないこと、失敗時に `.part` を残さないこと
+* `.DS_Store` や `*.part` をバケットへ上げないこと

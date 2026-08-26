@@ -42,6 +42,8 @@ scripts/
   fetch_demo_dataset.py    comma2k19 の demo split を取得して展開する
   fetch_cereal_schema.py   rlog を読むための capnp スキーマを取得する
   fetch_car_segments.py    commaCarSegments の一覧表示とセグメント取得
+  fetch_from_s3.py         EC2 専用: 指定の S3 バケットから raw_data/ へ取り込む
+  upload_to_s3.py          EC2 専用: 検証用データを指定の S3 バケットへ送り込む
   check_signal_parity.py   2 つのデータセットの信号・単位・周期の整合を確認する
   screen_segments.py       数百〜数千セグメントのスクリーニング (取得と処理を重ねる)
   run_detection.py         抽出の実行 (--dataset で供給元を選ぶ)
@@ -151,6 +153,24 @@ uv run python scripts/fetch_car_segments.py --list
 # 取得量を確かめてから取る (3 ルート × 連続 5 セグメント)
 uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
 uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
+```
+
+EC2 では公開元ではなく、あらかじめ用意した S3 バケットから取り込む
+(認証は IAM Role。鍵は置かない)。同じ絞り込みの引数が使える。
+バケットを埋める側は `upload_to_s3.py`。`--fetch` を付ければ公開元から取って
+そのまま上げるので、**Mac を経由しない**。手順は
+[docs/environment.md §4.4 / §4.5](docs/environment.md) を見ること。
+
+```bash
+uv run python scripts/fetch_from_s3.py --show-layout
+
+# バケットを埋める (公開元から取ってそのまま上げる)
+uv run python scripts/upload_to_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --fetch --dry-run
+
+# バケットから取り込む
+uv run python scripts/fetch_from_s3.py car-segments \
+    --platform TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
 
 # comma2k19 との信号・単位・周期の整合性を確認する
 uv run python scripts/check_signal_parity.py --platform TOYOTA_RAV4_TSS2

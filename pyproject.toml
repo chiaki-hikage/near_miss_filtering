@@ -32,6 +32,11 @@ comma1m = [
 # comma2k19 の demo split (parquet) を取得する場合のみ。
 demo-dataset = ["pyarrow>=12.0"]
 
+# EC2 で検証用データを S3 から raw_data/ へ取り込む場合のみ (scripts/fetch_from_s3.py)。
+# 認証は IAM Role (インスタンスプロファイル) 経由。鍵は持たせない。
+# Mac ではローカルの raw_data/ を直接使うので、この extra は要らない。
+s3 = ["boto3>=1.34"]
+
 dev = ["pytest>=7.0"]
 
 [tool.pytest.ini_options]

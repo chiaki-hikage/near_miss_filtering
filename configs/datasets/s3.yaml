@@ -1,0 +1,27 @@
+# EC2 で検証用データを取り込む S3 バケットの指定。
+#
+# ここに書くのは **バケット名とプレフィックスだけ**。
+# アクセスキー・シークレット・セッショントークンは絶対に書かないこと。
+# EC2 では IAM Role (インスタンスプロファイル) 経由で認証する。
+# scripts/fetch_from_s3.py は静的な鍵が使われようとしたら止まる。
+#
+# Mac では使わない。Mac はこれまで通り raw_data/ を直接読む。
+#
+# 指定の優先順:
+#   1. --bucket s3://my-bucket/near_miss
+#   2. 環境変数 NEAR_MISS_S3_URI
+#   3. このファイル
+#
+# バケット側のキー構成は raw_data/ の下と 1:1。対応は次で確認できる:
+#   uv run python scripts/fetch_from_s3.py --show-layout
+
+# 例: uri: s3://my-verification-bucket/near_miss
+# 未設定のままだと、--bucket も環境変数も無い場合にエラーになる。
+uri: ""
+
+# uri の代わりに分けて書いてもよい。
+# bucket: my-verification-bucket
+# prefix: near_miss
+
+# 読み取りしか行わない。書き込み・削除は一切しない。
+# IAM Role に必要な権限は s3:GetObject / s3:ListBucket のみ。

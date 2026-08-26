@@ -39,6 +39,7 @@ OPTIONAL = [
     ("PIL", "comma1M の天候判定 (--extra comma1m)", False),
     ("pyarrow", "comma2k19 demo split (--extra demo-dataset)", False),
     ("pytest", "試験 (--extra dev)", False),
+    ("boto3", "S3 からの取り込み (--extra s3、EC2 のみ)", False),
 ]
 
 # (相対パス, 説明, 何のために要るか)
@@ -78,6 +79,40 @@ def dir_size_mb(p: Path) -> float:
     return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6
 
 
+def _report_s3() -> None:
+    """S3 経路の設定だけを見る。**AWS には問い合わせない** (EC2 の上でだけ認証を確かめる)。"""
+    from near_miss.io import s3_sync as s3
+
+    on_ec2 = s3.is_ec2()
+    print(f"  EC2          : {'はい' if on_ec2 else 'いいえ'}")
+    try:
+        loc = s3.resolve_location()
+        print(f"  バケット     : {loc.uri()}")
+    except ValueError:
+        print("  バケット     : 未設定  (--bucket / NEAR_MISS_S3_URI / configs/datasets/s3.yaml)")
+        if not on_ec2:
+            return
+
+    try:
+        s3.assert_no_env_file_credentials()
+    except PermissionError as exc:
+        print(f"  警告         : {str(exc).splitlines()[0]}")
+        return
+
+    if not on_ec2:
+        print("  認証         : 確認しない (EC2 の上ではないため)")
+        return
+    try:
+        import boto3
+
+        info = s3.verify_credentials(boto3.session.Session())
+        print(f"  認証         : {info.method}" + ("  (IAM Role)" if info.is_role else ""))
+    except ImportError:
+        print("  認証         : boto3 が無い  (uv sync --extra s3)")
+    except PermissionError as exc:
+        print(f"  認証         : {str(exc).splitlines()[0]}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -107,8 +142,8 @@ def main() -> int:
         path = shutil.which(cmd)
         print(f"  {'OK ' if path else '無し':<4}{cmd:<18}{(path or '-'):<40}{why}")
 
-    # 図まわりは OS で変わる唯一の箇所なので、必ず何が選ばれるか出す。
-    print("\n図の設定 (OS 依存の唯一の箇所)")
+    # 図まわりは判定経路で OS が効く唯一の箇所なので、必ず何が選ばれるか出す。
+    print("\n図の設定 (判定経路で OS 依存の唯一の箇所)")
     try:
         from near_miss import plotting
 
@@ -121,6 +156,9 @@ def main() -> int:
             print("  " + plotting.INSTALL_HINT.replace("\n", "\n  "))
     except Exception as exc:
         print(f"  matplotlib が使えません: {exc}  (図を描かないなら問題ない)")
+
+    print("\nS3 からの取り込み (EC2 のみ。Mac はローカルの raw_data/ を直接使う)")
+    _report_s3()
 
     if args.data:
         print("\nデータの置き場")
