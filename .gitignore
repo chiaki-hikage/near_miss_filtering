@@ -15,3 +15,4 @@ uv.lock.bak
 .env
 .env.local
 .aws/
+shared/msdm.tar

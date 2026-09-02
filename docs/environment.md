@@ -79,6 +79,8 @@ EC2 側に C/C++ のツールチェインは要らない。
 | `--extra demo-dataset` | pyarrow | comma2k19 の demo split を取るとき |
 | `--extra s3` | boto3 | **EC2 で S3 とデータをやりとりするとき** (§4.4 / §4.5)。Mac では要らない |
 
+KIT MSDM の受け取りと照合 (§4.2) に追加の依存は要らない (標準ライブラリだけ)。
+
 Python は `.python-version` で **3.10** に固定してある。
 uv が無ければ自分で取ってくるので、OS 側の Python は使わない。
 
@@ -215,15 +217,44 @@ uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-ro
 | 200 | 3.3 h | 276 MB |
 | 2,000 | 33.1 h | **2.8 GB** |
 
-### 4.2 KIT MSDM (公開元から / 強く推奨)
+### 4.2 KIT MSDM (強く推奨)
 
 フィルタが**本物の横滑りを拾えるか**を確かめる唯一のデータ
-([kit_msdm.md](kit_msdm.md))。RADAR4KIT から取得する。
+([kit_msdm.md](kit_msdm.md))。RADAR4KIT が配布している。
 
-* DOI 10.35097/44a91t97pmnha1k9 / CC BY-SA 4.0
-* https://radar.kit.edu/radar/en/dataset/44a91t97pmnha1k9
-* 展開後 `raw_data/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset/` に
-  `*.mat` と `parameter.m` が並ぶ形にする
+| | |
+|---|---|
+| DOI | 10.35097/44a91t97pmnha1k9 |
+| 配布ページ | https://radar.kit.edu/radar/en/dataset/44a91t97pmnha1k9 |
+| ライセンス | **CC BY-SA 4.0** (商用可・継承)。認証も申請も要らない |
+| 配布物 | BagIt を tar 1 本にまとめたもの `msdm.tar` **171,741,696 バイト** |
+| MD5 | `d7eda9478c28a88b60074ee8ab2b0286` |
+
+`scripts/fetch_kit_msdm.py` が受け取りから照合までを行う。
+**どこから来たかではなく中身で確かめる**ので、経路が限られる環境でも使える。
+
+```bash
+# 手元にある tar を使う (ネットワークを一切使わない)
+uv run python scripts/fetch_kit_msdm.py --tar /mnt/media/msdm.tar
+
+# 外に出られる環境で取ってくる (接続先を表示して確認を取る)
+uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
+
+# 既に置いてあるものを照合するだけ
+uv run python scripts/fetch_kit_msdm.py --verify-only
+```
+
+照合は 2 段。**どちらかが合わなければ展開しない。**
+
+1. 配布物の大きさと MD5 が `configs/datasets/kit_msdm.yaml` の値と一致するか
+2. 展開後、BagIt の `manifest-md5.txt` に載る **44 件すべて**の MD5
+
+展開後は `raw_data/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset/` に
+`*.mat` 41 本と `parameter.m` が並ぶ。
+
+> **配布 URL はこの repo に持っていない。** 最初の取得が手作業で、コマンドが
+> 記録として残っていないため。`--url` には配布ページから辿ったものを渡すこと。
+> 閉鎖環境では §4.6 のとおり `--tar` を使うので URL は要らない。
 
 ### 4.3 comma2k19 (公開元から / 任意)
 
@@ -455,6 +486,135 @@ uv run python scripts/upload_to_s3.py comma2k19 --chunk Chunk_1 -y --max-gb 10
 * `.DS_Store` / `Thumbs.db` / `*.part` / `*.tmp` は上げない
 * 削除は一切しない。バケットから消すのは手作業 (`aws s3 rm`)
 * `--max-gb` (既定 5 GB) を超えると確認を求める。`-y` で飛ばす
+
+---
+
+### 4.6 閉鎖環境 (外に出られない EC2) への持ち込み
+
+外向きの通信が塞がっている、あるいは許可制のところへ持ち込む場合の手順。
+**内部の情報を外へ出さずに済む形**にしてある。
+
+#### 考え方 — 取得と持ち込みを分ける
+
+```
+[外に出られる作業機]                       [閉鎖 EC2]
+  公開元から取得
+  MD5 と manifest で照合   --(S3)-->   S3 から取り込み
+  S3 バケットへ送り込み                  再度 manifest で照合
+```
+
+* **閉鎖 EC2 は外に出ない。** 取りに行く先は S3 だけ。
+  S3 ゲートウェイ VPC エンドポイントを作れば、**通信は AWS の網から出ない**
+  (インターネットゲートウェイも NAT も経由しない)
+* **外へ出す情報は「公開データを 1 本くれ」という要求だけ。** 送るのは固定の
+  User-Agent のみで、認証情報もホスト名も利用者名も載せない
+  (`test_user_agent_carries_no_host_or_user_info` で確認)
+* **持ち込んだものは中身で照合する。** 経路 (プロキシ、媒体、S3) を
+  信用しなくてよい
+
+#### 手順
+
+**1. 外に出られる作業機で取得し、照合する**
+
+```bash
+uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
+```
+
+接続前に、接続先ホスト・プロキシ・送信する情報を表示して確認を取る
+(`-y` で省略)。MD5 が合わなければ**展開せず、落としたファイルも消す**。
+
+媒体で渡された tar があるなら、この機すら要らない:
+
+```bash
+uv run python scripts/fetch_kit_msdm.py --tar /mnt/media/msdm.tar
+```
+
+**2. S3 バケットへ送り込む**
+
+```bash
+uv run python scripts/upload_to_s3.py kit-msdm --dry-run
+uv run python scripts/upload_to_s3.py kit-msdm
+```
+
+**3. 閉鎖 EC2 で取り込み、もう一度照合する**
+
+```bash
+uv run python scripts/fetch_from_s3.py kit-msdm
+uv run python scripts/fetch_kit_msdm.py --verify-only
+```
+
+`--verify-only` は BagIt の 44 件すべての MD5 を取り直す (172 MB / 約 0.3 秒)。
+ここが通れば、**配布元が出したものと 1 バイトも違わない**。
+
+#### tar のまま持ち込む場合
+
+`upload_to_s3.py` は展開後のファイルを上げるが、tar 1 本のまま置いてもよい。
+その場合は閉鎖 EC2 側で:
+
+```bash
+aws s3 cp s3://<バケット>/near_miss/kit_msdm/msdm.tar raw_data/kit_msdm/
+uv run python scripts/fetch_kit_msdm.py --tar raw_data/kit_msdm/msdm.tar
+```
+
+tar を展開する前に**中身を検査する**。絶対パス・`..`・シンボリックリンク・
+デバイスファイルを含む要素があれば、**1 件も書かずに中止する**
+(`test_extract_refuses_unsafe_tar_and_writes_nothing`)。
+MD5 の照合を `--allow-checksum-mismatch` で飛ばしても、この検査は残る。
+
+#### プロキシ経由で直接取る場合
+
+社内プロキシの許可リストに `radar.kit.edu` を入れられるなら、閉鎖 EC2 から
+直接取ってもよい。
+
+```bash
+export HTTPS_PROXY=http://proxy.internal:3128
+uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
+# または
+uv run python scripts/fetch_kit_msdm.py --url <配布 URL> --proxy http://proxy.internal:3128
+```
+
+**プロキシが TLS を終端していても MD5 の照合で気付ける。** 中身が書き換わって
+いれば展開せずに止まる。
+
+#### 外に出る通信の一覧
+
+このプロジェクトで外部に出る可能性があるのは次だけ。閉鎖 EC2 では
+**どれも起きない** (S3 だけを見るため)。
+
+| 相手 | 何のため | 使うもの |
+|---|---|---|
+| `radar.kit.edu` | KIT MSDM の配布物 | `fetch_kit_msdm.py --url` |
+| `huggingface.co` | commaCarSegments / comma2k19 | `fetch_car_segments.py`, `upload_to_s3.py --fetch` |
+| `raw.githubusercontent.com` | rlog を読む capnp スキーマ (5 ファイル / 120 KB) | `fetch_cereal_schema.py` |
+| `pypi.org` | 依存パッケージ | `uv sync` |
+
+**capnp スキーマは clone に付いてこない。** `data/` が `.gitignore` に入っている
+ため、clone しただけでは `data/cereal/` は空で、`rlog.zst` を 1 本も読めない。
+commaCarSegments を扱うなら、**データと同じように持ち込む必要がある**。
+
+```bash
+# 外に出られる作業機で (120 KB)
+uv run python scripts/fetch_cereal_schema.py
+
+# 閉鎖 EC2 へは媒体か S3 で運ぶ
+aws s3 cp --recursive data/cereal s3://<バケット>/near_miss/cereal      # 作業機
+aws s3 cp --recursive s3://<バケット>/near_miss/cereal data/cereal      # 閉鎖 EC2
+```
+
+KIT MSDM だけを使うなら capnp は要らない (MAT ファイルを直接読むため)。
+
+`uv sync` の依存は、閉鎖環境では社内ミラーを見るようにする:
+
+```bash
+export UV_INDEX_URL=https://pypi.internal/simple
+uv sync --extra viz --extra dev --extra s3
+```
+
+持ち込みが足りているかは次で分かる:
+
+```bash
+uv run python scripts/check_env.py --data
+```
 
 ---
 
@@ -710,18 +870,20 @@ config_hash : 4d8905fa3b
 ## 10. 変更したときに崩れていないか
 
 ```bash
-uv run python -m pytest -q                                    # 175 件
+uv run python -m pytest -q                                    # 193 件
 uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3
 ./scripts/demo_sideslip.sh -n 30 --no-fetch
 ```
 
 この 3 つが通れば、環境と判定の両方が保たれている。
 
-S3 経路を触ったときは追加で:
+S3 経路やデータの受け取りを触ったときは追加で:
 
 ```bash
 uv run python -m pytest tests/test_s3_sync.py -q               # 48 件、AWS には繋がない
+uv run python -m pytest tests/test_kit_msdm_fetch.py -q        # 18 件、外に出ない
 uv run python scripts/fetch_from_s3.py --show-layout           # 対応表が壊れていないか
+uv run python scripts/fetch_kit_msdm.py --verify-only          # 手元の KIT MSDM を再照合
 ```
 
 `tests/test_s3_sync.py` は次を機械的に見ている。
@@ -736,3 +898,12 @@ uv run python scripts/fetch_from_s3.py --show-layout           # 対応表が壊
 * 静的な鍵を拒み、`.env` の鍵を見つけたら止まること
 * 既にあるファイルを取り直さない / 上げ直さないこと、失敗時に `.part` を残さないこと
 * `.DS_Store` や `*.part` をバケットへ上げないこと
+
+`tests/test_kit_msdm_fetch.py` は次を見ている。
+
+* 配布物の MD5 / 大きさの不一致を捕まえること
+* BagIt の 44 件から 1 件でも書き換われば気付くこと
+* 絶対パス・`..`・シンボリックリンク・デバイスを含む tar を**1 件も書かずに**拒むこと
+* `requests` を `download()` の中でしか import しないこと
+  (`--tar` / `--verify-only` で通信の準備すら起きない)
+* User-Agent にホスト名も利用者名も載せないこと、認証情報を送らないこと

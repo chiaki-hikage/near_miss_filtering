@@ -44,6 +44,7 @@ scripts/
   fetch_car_segments.py    commaCarSegments の一覧表示とセグメント取得
   fetch_from_s3.py         EC2 専用: 指定の S3 バケットから raw_data/ へ取り込む
   upload_to_s3.py          EC2 専用: 検証用データを指定の S3 バケットへ送り込む
+  fetch_kit_msdm.py        KIT MSDM の配布物を受け取り、MD5 で照合して展開する
   check_signal_parity.py   2 つのデータセットの信号・単位・周期の整合を確認する
   screen_segments.py       数百〜数千セグメントのスクリーニング (取得と処理を重ねる)
   run_detection.py         抽出の実行 (--dataset で供給元を選ぶ)

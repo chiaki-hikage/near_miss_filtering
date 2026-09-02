@@ -37,6 +37,13 @@ demo-dataset = ["pyarrow>=12.0"]
 # Mac ではローカルの raw_data/ を直接使うので、この extra は要らない。
 s3 = ["boto3>=1.34"]
 
+# VLM review layer (後段) の推論だけは pyproject で管理しない。
+# vllm は torch の CUDA ビルドを引き連れており、EC2 の GPU 世代
+# (g7e = Blackwell) と driver に合うものを**その機械の上で**選ぶ必要がある。
+# Mac から解決した lock を持ち込むと合わないビルドに固定されるため、
+# EC2 側で個別に入れる (docs/environment.md)。
+# near_miss.vlm は runner.py 以外 vllm を import しないので、
+# 前処理・採点・試験はこの extra 無しで動く。
 dev = ["pytest>=7.0"]
 
 [tool.pytest.ini_options]

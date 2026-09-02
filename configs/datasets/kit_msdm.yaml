@@ -1,0 +1,40 @@
+# KIT Multi-Surface Driving Maneuvers の配布物の素性。
+#
+# ここに書くのは「受け取ったものが正しいか」を判定するための固定値。
+# 閉鎖環境では取得経路が信用できないことがあるので、**中身で照合する**。
+#
+# 値はすべて手元の配布物からの実測。MD5 は RADAR4KIT の公開値と一致することを
+# 確認済み (docs/kit_msdm.md §1)。
+
+doi: 10.35097/44a91t97pmnha1k9
+landing_page: https://radar.kit.edu/radar/en/dataset/44a91t97pmnha1k9
+license: CC BY-SA 4.0 (商用可・継承)
+
+# 直リンクは意図的に空にしてある。
+#   * この repo に取得コマンドの記録が無い (最初の取得は手作業だった)
+#   * RADAR4KIT の配信 URL は版によって変わりうる
+# 取得するときは landing_page から辿った URL を --url で渡すこと。
+download_url: ""
+
+# 配布物 (BagIt を tar でまとめたもの) 1 本
+archive:
+  name: msdm.tar
+  size_bytes: 171741696
+  md5: d7eda9478c28a88b60074ee8ab2b0286
+
+# 展開後の形。ここがずれていたら受け取ったものが違う
+bag:
+  root: 10.35097-44a91t97pmnha1k9
+  # manifest-md5.txt に載っている payload の数
+  manifest_entries: 44
+  # data/ 配下に実際に置かれるファイル数 (bag-info.txt の Payload-Oxum の後半)
+  payload_files: 45
+  # manifest に載らないが配布物には入っているもの。
+  # RADAR4KIT が bag を作ったあとに足しているため。欠落扱いにしない
+  unlisted:
+    - data/readme.txt
+  # 走行データ
+  dataset_dir: data/dataset
+  mat_files: 41
+  # dynamic_driving_* (限界走行)。再現率の測定に使うのはこれ
+  dynamic_runs: 13

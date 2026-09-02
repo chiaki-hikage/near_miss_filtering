@@ -38,6 +38,11 @@ DEFAULT_ROOT = REPO_ROOT / "raw_data" / "kit_msdm" / "10.35097-44a91t97pmnha1k9"
 
 RATE_HZ = 1000.0
 
+# 配布物の素性 (MD5 など) は configs/datasets/kit_msdm.yaml に置く。
+# 閉鎖環境では取得経路を信用できないので、受け取ったものを中身で照合する。
+DATASET_CONFIG = REPO_ROOT / "configs" / "datasets" / "kit_msdm.yaml"
+
+
 # MAT-file の要素タイプ
 MI_DOUBLE = 9
 MI_MATRIX = 14
@@ -370,3 +375,113 @@ def measured_sideslip_on_grid(
     beta = sideslip_deg(run, params, at=at)
     idx = np.searchsorted(run.t, t_grid).clip(0, run.t.size - 1)
     return beta[idx]
+
+
+# ---------------------------------------------------------------------------
+# 配布物の検証 (BagIt)
+#
+# 閉鎖環境では「どこから来たか」で正しさを担保できない。中身で照合する。
+# RADAR4KIT の配布物は BagIt なので、データセット自身が持つ manifest-md5.txt を使う。
+# ---------------------------------------------------------------------------
+def load_dataset_config(path: str | Path = DATASET_CONFIG) -> dict:
+    import yaml
+
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def file_md5(path: str | Path, chunk: int = 1 << 20) -> str:
+    """ファイルの MD5。大きいので分割して読む。
+
+    MD5 は BagIt / RADAR4KIT が使っている方式に合わせたもので、
+    **改竄検知ではなく取り違え・転送破損の検出**が目的。
+    """
+    import hashlib
+
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(chunk), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+@dataclass
+class BagReport:
+    """検証の結果。`ok` が False なら中身が期待と違う。"""
+
+    root: Path
+    checked: int = 0
+    mismatched: list[str] = field(default_factory=list)
+    missing: list[str] = field(default_factory=list)
+    unlisted: list[str] = field(default_factory=list)  # manifest に無い実体
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.mismatched and not self.missing
+
+    def summary(self) -> str:
+        lines = [
+            f"  場所         : {self.root}",
+            f"  照合         : {self.checked} 件",
+            f"  不一致       : {len(self.mismatched)} 件",
+            f"  欠落         : {len(self.missing)} 件",
+        ]
+        for label, items in (("不一致", self.mismatched), ("欠落", self.missing)):
+            for name in items[:5]:
+                lines.append(f"    {label}: {name}")
+            if len(items) > 5:
+                lines.append(f"    ... 他 {len(items) - 5} 件")
+        if self.unlisted:
+            lines.append(f"  manifest に無い実体: {', '.join(self.unlisted[:5])}")
+        lines += [f"  注意         : {n}" for n in self.notes]
+        return "\n".join(lines)
+
+
+def verify_bag(bag_root: str | Path, cfg: dict | None = None, quick: bool = False) -> BagReport:
+    """BagIt の manifest-md5.txt に照らして中身を確かめる。
+
+    quick=True なら大きさだけを見る (MD5 を全件取ると 172 MB 読む)。
+    """
+    bag_root = Path(bag_root)
+    cfg = cfg if cfg is not None else load_dataset_config()
+    expected_unlisted = set((cfg.get("bag") or {}).get("unlisted") or [])
+    rep = BagReport(root=bag_root)
+
+    manifest = bag_root / "manifest-md5.txt"
+    if not manifest.is_file():
+        rep.missing.append("manifest-md5.txt")
+        rep.notes.append("BagIt の manifest がありません。展開の仕方が違う可能性があります")
+        return rep
+
+    listed: dict[str, str] = {}
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        digest, _, rel = line.partition("  ")
+        listed[rel.strip()] = digest.strip()
+
+    for rel, digest in sorted(listed.items()):
+        path = bag_root / rel
+        if not path.is_file():
+            rep.missing.append(rel)
+            continue
+        rep.checked += 1
+        if not quick and file_md5(path) != digest:
+            rep.mismatched.append(rel)
+
+    on_disk = {p.relative_to(bag_root).as_posix() for p in (bag_root / "data").rglob("*") if p.is_file()}
+    extra = sorted(on_disk - set(listed))
+    rep.unlisted = extra
+    for rel in extra:
+        if rel not in expected_unlisted:
+            rep.notes.append(f"manifest にも設定にも無いファイルがあります: {rel}")
+
+    expected = (cfg.get("bag") or {}).get("manifest_entries")
+    if expected is not None and len(listed) != expected:
+        rep.notes.append(f"manifest の件数が想定と違います ({len(listed)} != {expected})")
+
+    if quick:
+        rep.notes.append("--quick のため MD5 は照合していません (存在の確認のみ)")
+    return rep

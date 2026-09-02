@@ -48,6 +48,8 @@ DATA_DIRS = [
     ("raw_data/comma_car_segments/database.json", "セグメント一覧", "取得に要る"),
     ("raw_data/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset", "KIT MSDM", "再現率の確認 (物差し)"),
     ("raw_data/Chunk_1", "comma2k19 Chunk_1", "任意"),
+    # clone に付いてこない。commaCarSegments / comma2k19 の rlog を読むのに要る
+    ("data/cereal/log.capnp", "capnp スキーマ", "rlog の読み出し (fetch_cereal_schema.py)"),
 ]
 
 
