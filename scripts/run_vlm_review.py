@@ -46,7 +46,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--config", type=Path, default=Path("configs/vlm.yaml"))
     p.add_argument("--limit", type=int, default=None, help="先頭 N 件だけ流す")
     p.add_argument("--batch", type=int, default=32)
-    p.add_argument("--max-model-len", type=int, default=None)
+    p.add_argument("--max-model-len", type=int, default=None,
+                   help="指定しなければ configs/vlm.yaml の models.<key>.max_model_len")
     p.add_argument("--gpu-util", type=float, default=0.85)
     p.add_argument("--no-resume", action="store_true", help="既存の結果を無視して最初から")
     return p.parse_args()
@@ -56,6 +57,7 @@ def main() -> int:
     args = parse_args()
     cfg = load_yaml(args.config)
 
+    spec: dict = {}
     if args.model == "echo":
         adapter, model_key = make_adapter("echo", "echo", cfg), "echo"
     else:
@@ -90,8 +92,14 @@ def main() -> int:
     print(f"出力     : {out}"
           + (f"  (済 {len(already)} 件を飛ばす)" if already else ""))
 
+    # モデル固有の上限。Qwen3-VL-30B-A3B は既定の 262144 では KV キャッシュが
+    # 96 GB に収まらない。CLI の指定があればそちらを優先する。
+    max_len = args.max_model_len or spec.get("max_model_len")
+    if max_len:
+        print(f"max_model_len: {max_len}"
+              + ("  (コマンドラインの指定)" if args.max_model_len else "  (設定から)"))
     runner = Runner(model_key, cfg, adapter,
-                    max_model_len=args.max_model_len,
+                    max_model_len=max_len,
                     gpu_memory_utilization=args.gpu_util)
     total = 0
     for rep in range(reps):
