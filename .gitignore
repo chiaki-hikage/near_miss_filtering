@@ -2,7 +2,22 @@ __pycache__/
 *.pyc
 .history/
 .DS_Store
-out/
+# out/ は基本的に除外するが、**再生成できない人手ラベルだけ**は git で持つ。
+# git は親ディレクトリが除外されていると子を再包含できないので、
+# out/ ではなく out/* と書いて階層ごとに開き直す。
+#
+# Mac から EC2 へ直接転送できないため、人手ラベルの共有経路も git になる。
+# labels_onset.csv は framecache/ と同じ階層にあり、作り直すつもりで
+# out/chunk1/vlm を消すと一緒に失われる。
+out/*
+!out/chunk1/
+out/chunk1/*
+!out/chunk1/labels.csv
+!out/chunk1/vlm/
+out/chunk1/vlm/*
+!out/chunk1/vlm/labels_onset.csv
+!out/chunk1/vlm/labels_onset.md
+
 data/
 .pytest_cache/
 raw_data/

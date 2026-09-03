@@ -77,6 +77,10 @@ def main() -> int:
     det = load_yaml(args.detection)
     vehicles = load_vehicle_configs(args.vehicles)
 
+    if not args.data_root.is_dir():
+        raise SystemExit(
+            f"データ置き場がありません: {args.data_root}\n"
+            "  scripts/list_required_segments.py で要るセグメントを確認してください")
     labels = pd.read_csv(args.labels)
     eps = episodes_from_labels(labels, cfg)
     print(f"エピソード {len(eps)} 件 "
@@ -84,6 +88,7 @@ def main() -> int:
 
     # --- 1. 各エピソードの評価時刻と必要セグメント -----------------------
     plans = []
+    n_skipped = 0
     avail_cache: dict[str, set[int]] = {}
     for ep in eps:
         avail = avail_cache.setdefault(
@@ -92,12 +97,23 @@ def main() -> int:
         # 短い窓のまま渡し、その事実を記録する (min_video_frames)。
         times, tr = timeline_available(ep, cfg, avail)
         if not times:
-            print(f"  {ep.event_id}: 映像が無いので飛ばします")
+            print(f"  {ep.event_id}: {ep.drive_id.split('|')[-1]} の "
+                  f"seg{ep.segment} に映像が無いので飛ばします")
+            n_skipped += 1
             continue
         segs = fr.needed_segments(ep, cfg, times) & avail
         plans.append({"ep": ep, "times": times, "trunc": tr,
                       "segments": sorted(segs), "avail": avail})
 
+    if n_skipped:
+        print(f"\n  ** {n_skipped}/{len(eps)} 件を飛ばしました。"
+              "映像の配置を確認してください:\n"
+              "     uv run python scripts/list_required_segments.py\n")
+    if not plans:
+        raise SystemExit(
+            "処理できるエピソードがありません。\n"
+            f"  {args.data_root}/<drive_id>/<番号>/video.hevc の形で置かれているか"
+            "確認してください")
     n_seg = len({(p["ep"].drive_id, s) for p in plans for s in p["segments"]})
     n_pts = sum(len(p["times"]) for p in plans)
     print(f"  評価時刻 {n_pts} 点 / 要するセグメント {n_seg} 本 "
