@@ -33,6 +33,12 @@ META_INDICES = "frames_indices"
 META_BACKEND = "video_backend"
 META_DO_SAMPLE = "do_sample_frames"
 
+# 動画として渡せる最小フレーム数。Qwen 系は時間方向を 2 フレーム単位で
+# まとめるので、1 枚だけの「動画」は成立しない。実際 Qwen3-VL では
+# shape=(1,H,W,C) を渡すと Qwen3VLProcessor が失敗する。
+# これを下回るときは image として渡す (時刻を捨てない)。
+MIN_VIDEO_FRAMES = 2
+
 
 @dataclass
 class QwenVLAdapter:
@@ -49,6 +55,7 @@ class QwenVLAdapter:
     input_kind: str = "video"        # "video" か "images"
     video_metadata: bool = False     # Qwen3-VL 系で true
     video_fps: float = 2.0           # 渡すフレームの実際の間隔 (input.video_fps)
+    min_video_frames: int = MIN_VIDEO_FRAMES
     _processor: Any = None
 
     def processor(self):
@@ -58,11 +65,27 @@ class QwenVLAdapter:
             self._processor = AutoProcessor.from_pretrained(self.model_id)
         return self._processor
 
-    def chat_text(self, prompt: str, n_media: int) -> str:
+    def media_kind_for(self, frames: list[str]) -> str:
+        """このフレーム列をどのモダリティで渡すか。
+
+        **chat template と multi_modal_data で必ず同じ判断を使う。**
+        片方だけ image にすると processor が入力と合わずに失敗する。
+
+        枚数が min_video_frames に満たないときは image にする。
+        実測で該当するのは P08 の先頭 1 時刻だけ (履歴が 0.6 秒しか無い)。
+        そこを捨てると、この事象で危険が立ち上がる最初の瞬間が見えなくなる。
+        """
+        if self.input_kind != "video":
+            return "image"
+        if len(frames) < max(1, int(self.min_video_frames)):
+            return "image"
+        return "video"
+
+    def chat_text(self, prompt: str, frames: list[str]) -> str:
         """chat template を当てた素のプロンプト文字列を返す。"""
         content: list[dict[str, Any]] = []
-        if n_media:
-            content.append({"type": self.input_kind})
+        if frames:
+            content.append({"type": self.media_kind_for(frames)})
         content.append({"type": "text", "text": prompt})
         msgs = [{"role": "user", "content": content}]
         return self.processor().apply_chat_template(
@@ -90,11 +113,12 @@ class QwenVLAdapter:
         from PIL import Image
 
         arr = np.stack([np.asarray(Image.open(Path(p)).convert("RGB")) for p in frames])
-        if self.input_kind != "video":
-            return {"image": list(arr)}
+        if self.media_kind_for(frames) == "image":
+            return {"image": [arr[i] for i in range(arr.shape[0])]}
         if not self.video_metadata:
             return {"video": arr}
-        n = len(frames)
+        # メタデータは渡す配列そのものを記述する。T と総数と添字は必ず一致させる。
+        n = int(arr.shape[0])
         meta = {
             META_FPS: float(self.video_fps),
             META_TOTAL: n,
@@ -102,10 +126,13 @@ class QwenVLAdapter:
             META_BACKEND: "opencv",
             META_DO_SAMPLE: False,
         }
+        assert len(meta[META_INDICES]) == n == meta[META_TOTAL]
         return {"video": (arr, meta)}
 
     def limits(self) -> dict[str, int]:
-        return {self.input_kind: 1 if self.input_kind == "video" else 32}
+        # 動画と画像のどちらでも渡しうるので両方を許可しておく。
+        # 片方しか宣言しないと、image に落ちた時刻で vLLM が弾く。
+        return {"video": 1, "image": 32}
 
 
 class EchoAdapter:
@@ -121,7 +148,10 @@ class EchoAdapter:
     def __init__(self, model_id: str = "echo") -> None:
         self.model_id = model_id
 
-    def chat_text(self, prompt: str, n_media: int) -> str:
+    def media_kind_for(self, frames: list[str]) -> str:
+        return "image"
+
+    def chat_text(self, prompt: str, frames: list[str]) -> str:
         return prompt
 
     def multi_modal(self, frames: list[str]) -> dict[str, Any] | None:
@@ -141,6 +171,7 @@ def make_adapter(name: str, model_id: str, cfg: dict[str, Any],
             input_kind=str(cfg.get("media_kind", "video")),
             video_metadata=bool(spec.get("video_metadata", False)),
             video_fps=float(cfg["input"]["video_fps"]),
+            min_video_frames=int(spec.get("video_min_frames", MIN_VIDEO_FRAMES)),
         )
     if name == "echo":
         return EchoAdapter(model_id)

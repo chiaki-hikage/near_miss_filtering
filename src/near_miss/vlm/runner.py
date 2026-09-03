@@ -154,9 +154,11 @@ class Runner:
         inputs = []
         for r in chunk:
             prompt = build_prompt(r, self.cfg)
-            item: dict[str, Any] = {
-                "prompt": self.adapter.chat_text(prompt, len(r.get("frames", [])))}
-            mm = self.adapter.multi_modal(r.get("frames", []))
+            frames = r.get("frames", [])
+            # chat template と multi_modal_data は同じフレーム列から作る。
+            # 別々に判断するとモダリティがずれて processor が失敗する。
+            item: dict[str, Any] = {"prompt": self.adapter.chat_text(prompt, frames)}
+            mm = self.adapter.multi_modal(frames)
             if mm:
                 item["multi_modal_data"] = mm
             inputs.append(item)
