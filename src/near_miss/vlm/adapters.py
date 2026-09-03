@@ -25,13 +25,30 @@ from pathlib import Path
 from typing import Any
 
 
+# Qwen3-VL が要求する動画メタデータの項目名。
+# vLLM の版で綴りが変わりうるので、直すならここ 1 箇所で済むようにしておく。
+META_FPS = "fps"
+META_TOTAL = "total_num_frames"
+META_INDICES = "frames_indices"
+META_BACKEND = "video_backend"
+META_DO_SAMPLE = "do_sample_frames"
+
+
 @dataclass
 class QwenVLAdapter:
-    """Qwen2.5-VL / Qwen3-VL / Cosmos-Reason1 で共通。"""
+    """Qwen2.5-VL / Qwen3-VL / Cosmos-Reason1 で共通。
+
+    Qwen3-VL は動画のメタデータ (fps 等) を要求する。無いと vLLM が
+    `video metadata is required but not found in mm input` で落ちる。
+    Qwen2.5-VL は素の配列で動くので、**モデル単位で切り替える**
+    (configs/vlm.yaml の models.<key>.video_metadata)。
+    """
 
     model_id: str
     name: str = "qwen_vl"
     input_kind: str = "video"        # "video" か "images"
+    video_metadata: bool = False     # Qwen3-VL 系で true
+    video_fps: float = 2.0           # 渡すフレームの実際の間隔 (input.video_fps)
     _processor: Any = None
 
     def processor(self):
@@ -52,14 +69,40 @@ class QwenVLAdapter:
             msgs, tokenize=False, add_generation_prompt=True)
 
     def multi_modal(self, frames: list[str]) -> dict[str, Any] | None:
-        """フレーム列を vLLM の multi_modal_data に直す。"""
+        """フレーム列を vLLM の multi_modal_data に直す。
+
+        video_metadata=True のときは (配列, メタデータ) の組で渡す。
+        メタデータは**こちらが渡すフレーム列そのもの**を記述する。
+
+            fps               = input.video_fps (2.0)。実際の間隔と一致する
+            total_num_frames  = 渡す枚数
+            frames_indices    = 0..n-1
+            do_sample_frames  = False  こちらで間引き済みなので再サンプルさせない
+
+        fps と indices から Qwen3-VL が各フレームの時刻を出す。2 fps・連番なので
+        0.0 / 0.5 / 1.0 ... となり、build_vlm_inputs が実際に抜いた間隔と一致する。
+        履歴が足りず枚数が減る時刻 (P08 の 7 点) でも間隔は 0.5 秒のままなので、
+        この作り方で正しい。
+        """
         if not frames:
             return None
         import numpy as np
         from PIL import Image
 
         arr = np.stack([np.asarray(Image.open(Path(p)).convert("RGB")) for p in frames])
-        return {"video": arr} if self.input_kind == "video" else {"image": list(arr)}
+        if self.input_kind != "video":
+            return {"image": list(arr)}
+        if not self.video_metadata:
+            return {"video": arr}
+        n = len(frames)
+        meta = {
+            META_FPS: float(self.video_fps),
+            META_TOTAL: n,
+            META_INDICES: list(range(n)),
+            META_BACKEND: "opencv",
+            META_DO_SAMPLE: False,
+        }
+        return {"video": (arr, meta)}
 
     def limits(self) -> dict[str, int]:
         return {self.input_kind: 1 if self.input_kind == "video" else 32}
@@ -88,10 +131,17 @@ class EchoAdapter:
         return {}
 
 
-def make_adapter(name: str, model_id: str, cfg: dict[str, Any]):
+def make_adapter(name: str, model_id: str, cfg: dict[str, Any],
+                 spec: dict[str, Any] | None = None):
+    """spec は configs/vlm.yaml の models.<key>。モデル固有の差だけを見る。"""
+    spec = spec or {}
     if name == "qwen_vl":
-        return QwenVLAdapter(model_id=model_id,
-                             input_kind=str(cfg.get("media_kind", "video")))
+        return QwenVLAdapter(
+            model_id=model_id,
+            input_kind=str(cfg.get("media_kind", "video")),
+            video_metadata=bool(spec.get("video_metadata", False)),
+            video_fps=float(cfg["input"]["video_fps"]),
+        )
     if name == "echo":
         return EchoAdapter(model_id)
     raise ValueError(f"未知の adapter: {name}")

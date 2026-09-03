@@ -154,11 +154,16 @@ models:
     model_id: "Qwen/Qwen3-VL-8B-Instruct"
     tier: 1
     note: "世代差"
+    # Qwen3-VL は動画のメタデータ (fps 等) を要求する。無いと vLLM が
+    # 「video metadata is required but not found in mm input」で落ちる。
+    # Qwen2.5-VL / Cosmos-Reason1 は素の配列で動くので false のまま。
+    video_metadata: true
   qwen3_vl_30b_a3b:
     adapter: qwen_vl
     model_id: "Qwen/Qwen3-VL-30B-A3B-Instruct"
     tier: 2
     note: "MoE。活性 3B なので 7B 級の速度で規模の効果を見る"
+    video_metadata: true
 
 # 一括判定の条件。D は既存フィルタの結果をヒントとして与えるアブレーションで、
 # 独立性能の比較には含めない (別表にする)。

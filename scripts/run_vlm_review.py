@@ -63,7 +63,7 @@ def main() -> int:
         if spec is None:
             raise SystemExit(f"models に {args.model} がありません: "
                              f"{sorted(cfg['models'])}")
-        adapter = make_adapter(spec["adapter"], spec["model_id"], cfg)
+        adapter = make_adapter(spec["adapter"], spec["model_id"], cfg, spec)
         model_key = args.model
 
     src = args.dir / f"requests_mode_{args.mode}.jsonl"
