@@ -504,8 +504,9 @@ Phase 1 の失敗様式が分かってから、どの区間を優先的にラベ
 ## 12. わかっていないこと
 
 * **実機で未検証。** GPU が無いため、次は確かめられていない。
-  - `vllm.LLM` / `SamplingParams` / `GuidedDecodingParams` の API 互換（版差がある）
-  - `guided_json` が実際に効いているか（`schema_errors` が 0 でなければ効いていない）
+  - `vllm.LLM` / `SamplingParams` / `StructuredOutputsParams` の API 互換
+    （版差がある。0.28 で `GuidedDecodingParams` から改称された）
+  - 構造化出力が実際に効いているか（`schema_errors` が 0 でなければ効いていない）
   - `AutoProcessor.apply_chat_template` が `type: "video"` を受けるか
     （受けなければ `media_kind: images` へ切り替え）
   - VRAM と `max_model_len` の実際の必要量

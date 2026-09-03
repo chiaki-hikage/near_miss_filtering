@@ -45,7 +45,8 @@ def load_requests(path: Path) -> list[dict[str, Any]]:
 def parse_response(text: str) -> tuple[dict[str, Any] | None, str]:
     """モデルの出力から JSON を取り出す。
 
-    guided_json が効いていれば素直に読めるはず。効いていない場合に備えて
+    構造化出力 (structured_outputs) が効いていれば素直に読めるはず。
+    効いていない場合に備えて
     最初の { から最後の } までを試すが、**それを常態にしない**。
     schema 適合率はゲート条件 1 なので、直せているかを必ず見る。
     """
@@ -97,11 +98,16 @@ class Runner:
         if self.adapter.name == "echo":
             return None
         from vllm import SamplingParams
-        from vllm.sampling_params import GuidedDecodingParams
+        # vLLM 0.28 で名前が変わった。
+        #   GuidedDecodingParams -> StructuredOutputsParams
+        #   SamplingParams(guided_decoding=...) -> structured_outputs=...
+        # 渡す JSON Schema も、それが効いているかの確認方法 (schema_errors) も
+        # 変わらない。
+        from vllm.sampling_params import StructuredOutputsParams
         return SamplingParams(
             temperature=float(d["temperature"]), top_p=float(d["top_p"]),
             max_tokens=int(d["max_tokens"]), seed=int(d["seed"]),
-            guided_decoding=GuidedDecodingParams(json=build_schema(mode)),
+            structured_outputs=StructuredOutputsParams(json=build_schema(mode)),
         )
 
     def run(self, requests: Iterable[dict[str, Any]], rep: int,
