@@ -27,50 +27,148 @@ STATE_COLOR: dict[str, tuple[int, int, int]] = {
 }
 PENDING_COLOR = (110, 110, 110)
 
-# 日本語が描けるフォントの候補。matplotlib に依らずに探す
-# (この機能のためだけに viz extra を要求しない)。
+# 日本語が描けるフォントを探す。
+#
+# **パスが見つかっただけで信用しない。** DejaVuSans は Linux にほぼ必ずあるが
+# 日本語グリフを持たないので、そのまま使うと字幕が全部 □ になる。
+# 実際に「あ」「車」を描いてみて、.notdef と違う絵が出るかで判定する。
 FONT_CANDIDATES = (
+    # macOS
     "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
     "/Library/Fonts/Arial Unicode.ttf",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJKjp-Regular.otf",
+    # Amazon Linux 2023 / RHEL 系 (google-noto-sans-cjk-jp-fonts)
     "/usr/share/fonts/google-noto-sans-cjk-vf-fonts/NotoSansCJK-VF.otf.ttc",
+    "/usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJKjp-Regular.otf",
+    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+    # Debian / Ubuntu (fonts-noto-cjk)
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
     "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",   # 日本語は出ないが最後の砦
+    # その他よくあるもの
+    "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf",
+    "/usr/share/fonts/ipa-gothic/ipag.ttf",
 )
+
+# 上のどれも無い場合に走査するディレクトリと、日本語フォントらしい名前。
+SEARCH_DIRS = (
+    "/usr/share/fonts", "/usr/local/share/fonts",
+    "~/.fonts", "~/.local/share/fonts",
+    "/Library/Fonts", "/System/Library/Fonts",
+)
+SEARCH_HINTS = ("cjk", "notosansjp", "notoserifjp", "gothic", "mincho",
+                "ipa", "takao", "vl-", "hiragino", "yugoth", "meiryo", "msgothic")
 
 FONT_HINT = (
     "日本語フォントが見つかりません。字幕が □ になります。\n"
     "  Amazon Linux 2023 : sudo dnf install -y google-noto-sans-cjk-jp-fonts\n"
-    "  Debian/Ubuntu     : sudo apt-get install -y fonts-noto-cjk"
+    "  Debian/Ubuntu     : sudo apt-get install -y fonts-noto-cjk\n"
+    "  入れた後に scripts/make_review_video.py を流し直してください。\n"
+    "  特定のファイルを使う場合は --font <path> で指定できます。"
 )
 
+# 判定に使う文字。私用領域は .notdef になるので、これと同じ絵なら
+# その文字を持っていない。
+_PROBE = ("あ", "車", "間")
+_NOTDEF = "\ue000"
 
-def find_font_path() -> str | None:
-    for p in FONT_CANDIDATES:
-        if Path(p).is_file():
-            return p
-    try:  # matplotlib があれば、そちらの探索結果も使う
-        from matplotlib import font_manager
-        from matplotlib.font_manager import FontProperties
 
-        for name in ("Noto Sans CJK JP", "Hiragino Sans", "IPAexGothic", "Yu Gothic"):
-            path = font_manager.findfont(FontProperties(family=name), fallback_to_default=False)
-            if path and Path(path).is_file():
-                return path
+def _render(font, ch: str) -> bytes:
+    from PIL import Image, ImageDraw
+
+    im = Image.new("L", (72, 72), 0)
+    ImageDraw.Draw(im).text((4, 4), ch, font=font, fill=255)
+    return im.tobytes()
+
+
+def has_japanese(font) -> bool:
+    """このフォントで日本語が描けるか。
+
+    .notdef (私用領域) と同じ絵になる、あるいは何も描かれないなら描けない。
+    パスや名前ではなく**実際に描いた結果**で判定する。
+    """
+    try:
+        notdef = _render(font, _NOTDEF)
+        blank = _render(font, " ")
     except Exception:
-        pass
+        return False
+    for ch in _PROBE:
+        try:
+            g = _render(font, ch)
+        except Exception:
+            return False
+        if g == notdef or g == blank:
+            return False
+    return True
+
+
+def _try_open(path: str, size: int):
+    """TTC は複数の書体を含む。日本語を持つ面が見つかるまで順に試す。"""
+    from PIL import ImageFont
+
+    for index in range(6):
+        try:
+            f = ImageFont.truetype(path, size, index=index)
+        except Exception:
+            break
+        if has_japanese(f):
+            return f
     return None
 
 
-def load_font(size: int):
+def _scan_dirs(size: int):
+    seen: list[str] = []
+    for d in SEARCH_DIRS:
+        root = Path(d).expanduser()
+        if not root.is_dir():
+            continue
+        for p in sorted(root.rglob("*")):
+            if p.suffix.lower() not in (".ttf", ".ttc", ".otf", ".otc"):
+                continue
+            if not any(h in p.name.lower() for h in SEARCH_HINTS):
+                continue
+            seen.append(str(p))
+            f = _try_open(str(p), size)
+            if f is not None:
+                return f, str(p)
+            if len(seen) > 200:      # 走査が長引かないよう打ち切る
+                return None, None
+    return None, None
+
+
+def load_font(size: int) -> tuple[Any, bool, str]:
+    """日本語が描けるフォントを返す。
+
+    戻り値は (フォント, 日本語が描けるか, 選んだファイル).
+    描けるものが無ければ既定のビットマップフォントを返し、呼び出し側が
+    警告を出せるようにする。**字幕が読めなくても処理は止めない。**
+    """
     from PIL import ImageFont
 
-    path = find_font_path()
-    if path is None:
-        return ImageFont.load_default(), False
-    return ImageFont.truetype(path, size), True
+    for path in FONT_CANDIDATES:
+        if Path(path).is_file():
+            f = _try_open(path, size)
+            if f is not None:
+                return f, True, path
+
+    f, path = _scan_dirs(size)
+    if f is not None:
+        return f, True, path
+
+    return ImageFont.load_default(), False, "(既定のビットマップ)"
+
+
+def load_font_at(path: str, size: int) -> tuple[Any, bool, str]:
+    """明示されたファイルを使う (--font)。日本語が描けるかは検査する。"""
+    from PIL import ImageFont
+
+    f = _try_open(path, size)
+    if f is not None:
+        return f, True, path
+    try:
+        return ImageFont.truetype(path, size), False, path
+    except Exception as exc:
+        raise SystemExit(f"フォントを開けません: {path} ({exc})")
 
 
 def wrap(text: str, font, max_px: int, draw) -> list[str]:

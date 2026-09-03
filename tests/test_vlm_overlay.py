@@ -60,3 +60,40 @@ def test_1文字が幅を超えても落とさない():
 
 def test_状態の色が揃っている():
     assert set(STATE_COLOR) == {"normal", "caution", "hazard", "unknown"}
+
+
+# --- フォントの字形検査 --------------------------------------------------
+def test_日本語を持たないフォントを弾く():
+    """DejaVuSans のような欧文専用フォントは Linux にほぼ必ずある。
+
+    パスが見つかっただけで採用すると、字幕が全部 □ の動画ができる。
+    実際に描いた結果で判定する。
+    """
+    from PIL import ImageFont
+    from near_miss.vlm.overlay import has_japanese
+
+    # 既定のビットマップフォントは日本語を持たない
+    assert has_japanese(ImageFont.load_default()) is False
+
+
+def test_探索したフォントは日本語を描ける():
+    from near_miss.vlm.overlay import has_japanese, load_font
+
+    font, ok, path = load_font(20)
+    if not ok:
+        pytest.skip(f"この環境に日本語フォントがありません ({path})")
+    assert has_japanese(font) is True
+
+
+@pytest.mark.parametrize("path", [
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+])
+def test_欧文専用フォントは日本語なしと判定される(path):
+    from pathlib import Path as _P
+    from PIL import ImageFont
+    from near_miss.vlm.overlay import has_japanese
+
+    if not _P(path).is_file():
+        pytest.skip(f"{path} がありません")
+    assert has_japanese(ImageFont.truetype(path, 20)) is False

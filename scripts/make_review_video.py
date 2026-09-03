@@ -67,6 +67,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--width", type=int, default=960,
                    help="出力幅。キャッシュは 640 px なので拡大して字幕を読みやすくする")
     p.add_argument("--crf", type=int, default=20)
+    p.add_argument("--font", default=None,
+                   help="字幕のフォントファイル。既定は自動探索 "
+                        "(日本語が描けるかを字形で検査する)")
     p.add_argument("--fields", default=None,
                    help="字幕に出す項目を絞る (既定は "
                         + ",".join(k for k, _ in BODY_FIELDS) + ")")
@@ -131,10 +134,10 @@ def render_one(ep: Episode, js: list[ov.Judgment], times: list[float],
         marks["onset"] = float(r.get("t_onset_human", np.nan))
         marks["明確"] = float(r.get("t_apparent_human", np.nan))
 
-    font, ok = ov.load_font(max(13, args.width // 52))
-    small, _ = ov.load_font(max(12, args.width // 60))
-    if not ok:
-        print(f"  {ov.FONT_HINT}")
+    font, ok, path = (ov.load_font_at(args.font, max(13, args.width // 52))
+                      if args.font else ov.load_font(max(13, args.width // 52)))
+    small, _, _ = (ov.load_font_at(args.font, max(12, args.width // 60))
+                   if args.font else ov.load_font(max(12, args.width // 60)))
 
     out_dir = args.out / model
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -199,7 +202,13 @@ def main() -> int:
              if args.onset.is_file() else pd.DataFrame().set_index(pd.Index([])))
     want = {x.strip() for x in args.events.split(",")} if args.events else None
 
+    # フォントは最初に 1 度だけ解決して報告する。エピソードごとに黙って
+    # 既定へ落ちると、字幕が全部 □ の動画が大量にできてしまう。
+    probe = (ov.load_font_at(args.font, 20) if args.font else ov.load_font(20))
     print(f"モデル: {model} / 判定のあるエピソード {len(by_event)} 件")
+    print(f"フォント: {probe[2]}  日本語: {'描ける' if probe[1] else '**描けない**'}")
+    if not probe[1]:
+        print(ov.FONT_HINT)
     made = 0
     avail_cache: dict[str, set[int]] = {}
     for ep in eps:
