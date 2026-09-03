@@ -50,6 +50,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--onset", type=Path, default=Path("out/chunk1/vlm/labels_onset.csv"))
     p.add_argument("--config", type=Path, default=Path("configs/vlm.yaml"))
     p.add_argument("--out", type=Path, default=Path("out/chunk1/vlm/score"))
+    p.add_argument("--brief", action="store_true",
+                   help="貼り付けられる短い要約だけを出す (結果を持ち出せない環境向け)")
+    p.add_argument("--examples", type=int, default=0,
+                   help="失敗事例の説明文を N 件ずつ出す。**持ち出さず現地で読む**")
     return p.parse_args()
 
 
@@ -74,6 +78,13 @@ def load_results(paths) -> pd.DataFrame:
                 "n_schema_errors": len(r.get("schema_errors")
                                        or validate(resp, "clip" if r["mode"] == "clip" else "online")),
                 "ok": bool(resp),
+                "config_hash": r.get("config_hash"),
+                "prompt_version": r.get("prompt_version"),
+                "guard_s": r.get("guard_s"),
+                # 説明文。持ち出せない環境では EC2 側で読む (--examples)
+                "scene": resp.get("scene"), "ego_behavior": resp.get("ego_behavior"),
+                "difference": resp.get("difference_from_normal"),
+                "evidence_detail": resp.get("evidence_detail"),
             })
     return pd.DataFrame(rows)
 
@@ -333,6 +344,102 @@ def gates(a: pd.DataFrame, neg: pd.DataFrame, pos: pd.DataFrame, cfg) -> None:
             print(f"  {'OK  ' if ok else '未達'} {name}  ({detail})")
 
 
+def brief(res: pd.DataFrame, a: pd.DataFrame, neg: pd.DataFrame,
+          pos: pd.DataFrame, cfg, out: Path) -> None:
+    """判断に要る数字だけを 40 行程度にまとめる。
+
+    結果ファイルを持ち出せない環境では、この出力だけを手で運ぶ。
+    数値は件数で持つ (割合だけでは元に戻せない)。
+    """
+    L: list[str] = []
+    ch = sorted(map(str, res.config_hash.dropna().unique())) if "config_hash" in res else []
+    pv = sorted(map(str, res.prompt_version.dropna().unique())) if "prompt_version" in res else []
+    L.append("=== VLM PoC Phase1 digest ===")
+    L.append(f"config_hash={','.join(ch) or '-'} prompt={','.join(pv) or cfg['prompt_version']} "
+             f"guard={cfg['context']['guard_s']} stride={cfg['timeline']['stride_s']} "
+             f"debounce={cfg['alarm']['debounce_steps']}")
+    L.append(f"n_results={len(res)} models={','.join(sorted(res.model.unique()))}")
+
+    if not a.empty:
+        L.append("")
+        L.append("[A] model cond TP FN FP TN kappa schema_err rep_stable")
+        for _, r in a.sort_values(["model", "condition"]).iterrows():
+            L.append(f"  {r.model} {r.condition} {r.TP} {r.FN} {r.FP} {r.TN} "
+                     f"{r.kappa:+.3f} {r.schema_err} {r.rep_stable_k}/{r.rep_stable_n}")
+        for model, g in a.groupby("model"):
+            m = g[g.condition.isin(["A", "B", "C"])].set_index("condition")
+            if len(m) == 3:
+                c, b, aa = m.loc["C"], m.loc["B"], m.loc["A"]
+                L.append(f"  {model} delta C-B: TP{c.TP - b.TP:+d} FP{c.FP - b.FP:+d} "
+                         f"kappa{c.kappa - b.kappa:+.3f}")
+                L.append(f"  {model} delta C-A: TP{c.TP - aa.TP:+d} FP{c.FP - aa.FP:+d} "
+                         f"kappa{c.kappa - aa.kappa:+.3f}")
+            if "C" in m.index:
+                c = m.loc["C"]
+                L.append(f"  {model} evidence(C) video/both/can/insuf="
+                         f"{c.evidence_video}/{c.evidence_both}/{c.evidence_can}/{c.insufficient}")
+
+    if not neg.empty:
+        L.append("")
+        L.append("[B-neg] model clean ep_clean episodes ratio_med ratio_max minutes")
+        for model, g in neg.groupby("model"):
+            L.append(f"  {model} {int(g.clean.sum())}/{len(g)} "
+                     f"{int(g.episode_clean.sum())}/{len(g)} {int(g.n_episodes.sum())} "
+                     f"{np.median(g.duration_ratio):.3f} {g.duration_ratio.max():.3f} "
+                     f"{g.span_s.sum() / 60:.1f}")
+
+    if not pos.empty:
+        L.append("")
+        L.append("[B-pos] model event cue det d_onset d_apparent floor partial")
+        for _, r in pos.sort_values(["model", "event_id"]).iterrows():
+            f = lambda v: "-" if pd.isna(v) else f"{v:+.2f}"
+            L.append(f"  {r.model} {r.event_id} {r.onset_cue} "
+                     f"{'Y' if r.detected else 'N'} {f(r.delta_onset_s)} "
+                     f"{f(r.delta_apparent_s)} {r.latency_floor_s:.2f} {r.n_partial}")
+
+    text = "\n".join(L)
+    print(text)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "digest.txt").write_text(text + "\n", encoding="utf-8")
+
+
+def show_examples(res: pd.DataFrame, truth: dict[str, bool], n: int) -> None:
+    """外した事例の説明文を出す。**持ち出さず、この画面で読む。**
+
+    数値は digest で運べるが、説明の質と幻覚の有無は読まないと分からない。
+    読んだ結果は件数だけを記録して運ぶ (下の記入欄)。
+    """
+    a = res[(res["mode"] == "clip") & (res["condition"] == "C")].copy()
+    a["truth"] = a["event_id"].map(truth)
+    a = a[a["rep"] == a["rep"].min()].dropna(subset=["risky", "truth"])
+
+    print("\n" + "=" * 74)
+    print("失敗事例の説明文  ※ ここで読む。ファイルは持ち出さない")
+    print("=" * 74)
+    for model, g in a.groupby("model"):
+        fn = g[(~g.risky.astype(bool)) & (g.truth.astype(bool))].head(n)
+        fp = g[(g.risky.astype(bool)) & (~g.truth.astype(bool))].head(n)
+        for tag, sub in (("見落とし (人手 risky / VLM normal)", fn),
+                         ("誤検出 (人手 normal / VLM risky)", fp)):
+            print(f"\n[{model}] {tag}: {len(sub)} 件")
+            for _, r in sub.iterrows():
+                print(f"  --- {r.event_id}  state={r.state} hazard={r.hazard_type} "
+                      f"evidence={r.evidence} conf={r.confidence}")
+                for k, label in (("scene", "情景"), ("ego_behavior", "自車"),
+                                 ("difference", "通常との違い"),
+                                 ("evidence_detail", "根拠")):
+                    v = r.get(k)
+                    if isinstance(v, str) and v.strip():
+                        print(f"      {label}: {v}")
+
+    print("\n" + "-" * 74)
+    print("読んだ結果はこの形で記録して運ぶ (数値だけなので短い):")
+    print("  説明の妥当性: 妥当 _ / 部分的 _ / 誤り _   (対象 32 件)")
+    print("  幻覚 (映像に無い対象への言及): _ 件")
+    print("  所見: (1 行)")
+    print("-" * 74)
+
+
 def main() -> int:
     args = parse_args()
     cfg = load_yaml(args.config)
@@ -350,13 +457,23 @@ def main() -> int:
     if bad:
         print(f"  応答が空: {bad} 件")
 
-    a = score_mode_a(res, truth, args.out)
-    series = build_series(res, truth)
-    neg = score_negative(series, cfg, args.out)
-    pos = score_positive(series, onset, cfg, args.out) if not onset.empty else pd.DataFrame()
+    import contextlib, io
+    sink = io.StringIO() if args.brief else None
+    with contextlib.redirect_stdout(sink) if args.brief else contextlib.nullcontext():
+        a = score_mode_a(res, truth, args.out)
+        series = build_series(res, truth)
+        neg = score_negative(series, cfg, args.out)
+        pos = (score_positive(series, onset, cfg, args.out)
+               if not onset.empty else pd.DataFrame())
+
+    if args.examples:
+        show_examples(res, truth, args.examples)
+    if args.brief:
+        brief(res, a, neg, pos, cfg, args.out)
     if not a.empty or not neg.empty:
         gates(a, neg, pos, cfg)
-    print(f"\n出力: {args.out}")
+    print(f"\n出力: {args.out}"
+          + ("  (digest.txt を貼り付けてください)" if args.brief else ""))
     return 0
 
 
