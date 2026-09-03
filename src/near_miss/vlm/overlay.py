@@ -219,12 +219,21 @@ def judgment_at(js: Sequence[Judgment], t: float) -> Judgment | None:
     return js[i] if i >= 0 else None
 
 
+# 字幕の帯を画面下端からどれだけ浮かせるか。
+# 動画プレイヤーの再生・一時停止バーが下端に重なるので、その分をあける。
+BOTTOM_MARGIN = 100
+
+
 def draw_caption(img, j: Judgment | None, head: str, font, small,
-                 max_lines: int = 6):
+                 max_lines: int = 6, bottom_margin: int = BOTTOM_MARGIN):
     """画面下部に半透明の帯を敷いて字幕を描く。
 
     帯の高さは行数に合わせる。固定にすると短い判定で無駄に隠れ、
     長い判定でははみ出す。
+
+    bottom_margin だけ下端から浮かせる。プレイヤーの操作 UI が下端に
+    重なると字幕が読めなくなるため。レイアウトと文字の大きさは変えず、
+    位置だけを上げる。
     """
     from PIL import Image, ImageDraw
 
@@ -246,8 +255,11 @@ def draw_caption(img, j: Judgment | None, head: str, font, small,
 
     lh = font.size + gap
     band = pad + pad_bottom + (small.size + gap) + len(body) * lh
-    top = max(0, H - band)
-    d.rectangle([0, top, W, H], fill=(0, 0, 0, 185))
+    # 帯が画面外に出ないところまでしか浮かせない (小さい画で潰れないように)
+    margin = max(0, min(int(bottom_margin), H - band))
+    bottom = H - margin
+    top = max(0, bottom - band)
+    d.rectangle([0, top, W, bottom], fill=(0, 0, 0, 185))
 
     color = STATE_COLOR.get(j.state, PENDING_COLOR) if j else PENDING_COLOR
     d.rectangle([0, top, W, top + 4], fill=(*color, 255))

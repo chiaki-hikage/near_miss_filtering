@@ -97,3 +97,49 @@ def test_欧文専用フォントは日本語なしと判定される(path):
     if not _P(path).is_file():
         pytest.skip(f"{path} がありません")
     assert has_japanese(ImageFont.truetype(path, 20)) is False
+
+
+# --- 字幕の位置 ----------------------------------------------------------
+def test_字幕は下端から浮かせる():
+    """プレイヤーの操作 UI と重ならないよう、帯を下端から離す。
+
+    レイアウトと文字サイズは変えず、位置だけを上げる。
+    """
+    from PIL import Image
+    import numpy as np
+    from near_miss.vlm.overlay import BOTTOM_MARGIN, draw_caption, load_font
+
+    font, _, _ = load_font(18)
+    small, _, _ = load_font(16)
+    img = Image.new("RGB", (960, 720), (255, 255, 255))
+    out = draw_caption(img, _j(0.0), "head", font, small)
+
+    a = np.asarray(out)
+    # 下端の帯ぶんは白のまま (帯が届いていない)
+    assert (a[-10:, :, :] > 200).all(), "下端まで帯が伸びている"
+    # 浮かせた高さのすぐ上は帯 (暗い)
+    assert a[720 - BOTTOM_MARGIN - 5].mean() < 120, "帯が描かれていない"
+
+
+def test_浮かせる高さを変えられる():
+    from PIL import Image
+    import numpy as np
+    from near_miss.vlm.overlay import draw_caption, load_font
+
+    font, _, _ = load_font(18)
+    small, _, _ = load_font(16)
+    img = Image.new("RGB", (960, 720), (255, 255, 255))
+    a0 = np.asarray(draw_caption(img, _j(0.0), "h", font, small, bottom_margin=0))
+    assert a0[-5].mean() < 120, "0 を渡したら下端まで帯が来る"
+
+
+def test_帯が画面に収まらない場合は浮かせない():
+    from PIL import Image
+    import numpy as np
+    from near_miss.vlm.overlay import draw_caption, load_font
+
+    font, _, _ = load_font(18)
+    small, _, _ = load_font(16)
+    img = Image.new("RGB", (320, 200), (255, 255, 255))   # 帯より小さい画
+    a = np.asarray(draw_caption(img, _j(0.0), "h", font, small, bottom_margin=100))
+    assert a.mean() < 200, "小さい画で帯が消えている"

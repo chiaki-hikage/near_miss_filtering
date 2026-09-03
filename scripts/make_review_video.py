@@ -67,6 +67,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--width", type=int, default=960,
                    help="出力幅。キャッシュは 640 px なので拡大して字幕を読みやすくする")
     p.add_argument("--crf", type=int, default=20)
+    p.add_argument("--caption-margin", type=int, default=ov.BOTTOM_MARGIN,
+                   help="字幕を画面下端からどれだけ浮かせるか [px]。"
+                        "プレイヤーの操作 UI との重なりを避ける (既定 "
+                        f"{ov.BOTTOM_MARGIN})")
     p.add_argument("--font", default=None,
                    help="字幕のフォントファイル。既定は自動探索 "
                         "(日本語が描けるかを字形で検査する)")
@@ -156,7 +160,8 @@ def render_one(ep: Episode, js: list[ov.Judgment], times: list[float],
             h = int(round(img.height * args.width / img.width))
             img = img.resize((args.width, h - h % 2), Image.LANCZOS)
         j = ov.judgment_at(js, t)
-        img = ov.draw_caption(img, j, header(ep, j, t, t0, marks), font, small)
+        img = ov.draw_caption(img, j, header(ep, j, t, t0, marks), font, small,
+                              bottom_margin=args.caption_margin)
 
         if proc is None:
             proc = subprocess.Popen(
