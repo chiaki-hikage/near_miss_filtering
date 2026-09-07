@@ -631,12 +631,16 @@ bf16 では載らない**。本 PoC の入力は約 3,500 トークンなので 
 - **1 バッチ目は遅い。** CUDA graph の取り込みと割り当てが乗る。
   定常の速度は「1 バッチ目を除く」ほうを見る（両方出す）。
 
-短く測るだけなら `--limit` と `--perf-out` を使う。
+**流し終えた後に計測だけしたいとき**は `--out` で別ファイルに出す。
+既定の出力先には結果が揃っているので、再開機能が全件を飛ばして
+計測する件が無くなる。`--no-resume` は既存の結果を消すので使わない。
 
 ```bash
-uv run python scripts/run_vlm_review.py --model qwen3_vl_8b --mode b \
-    --limit 64 --perf-out out/perf_qwen3_8b.json
+uv run python scripts/run_vlm_review.py --model qwen3_vl_8b --mode b --limit 64 \
+    --out out/chunk1/vlm/perf_run/results_qwen3_vl_8b_mode_b.jsonl
 ```
+
+計測の明細は結果の隣（この例では `out/chunk1/vlm/perf_run/`）に置かれる。
 
 CPU / RAM は `psutil` があれば使い、無ければ `/proc` を直接読む。
 `top` を 0.2 秒ごとに起動はしない（top が出すのと同じ

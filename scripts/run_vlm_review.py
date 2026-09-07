@@ -56,6 +56,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--conditions", default=None,
                    help="モード A の条件を絞る (例 C または A,B,C)")
     p.add_argument("--dir", type=Path, default=Path("out/chunk1/vlm"))
+    p.add_argument("--out", type=Path, default=None,
+                   help="結果 JSONL の書き出し先 "
+                        "(既定 <dir>/results_<model>_mode_<x>.jsonl)。"
+                        "流し終えた結果を残したまま測り直すときに別ファイルを指定する")
     p.add_argument("--config", type=Path, default=Path("configs/vlm.yaml"))
     p.add_argument("--limit", type=int, default=None, help="先頭 N 件だけ流す")
     p.add_argument("--batch", type=int, default=32)
@@ -96,7 +100,8 @@ def main() -> int:
         want = {c.strip() for c in args.conditions.split(",")}
         reqs = [r for r in reqs if r["condition"] in want]
 
-    out = args.dir / f"results_{model_key}_mode_{args.mode}.jsonl"
+    out = args.out or (args.dir / f"results_{model_key}_mode_{args.mode}.jsonl")
+    out.parent.mkdir(parents=True, exist_ok=True)
     if args.no_resume and out.exists():
         out.unlink()
     already = done_ids(out)
@@ -149,17 +154,25 @@ def main() -> int:
             if args.limit:
                 todo = todo[: args.limit]
             if not todo:
-                print(f"\n反復 {rep}: 済")
+                print(f"\n反復 {rep}: 済 "
+                      f"({out.name} に結果があるので飛ばします)")
                 continue
             print(f"\n反復 {rep}: {len(todo)} 件")
             total += runner.run(todo, rep, out, batch=args.batch)
         print(f"\n書き出し {total} 件 -> {out}")
+        if total == 0 and meter is not None:
+            # 流し終えた後に計測だけしたい場合。既存の結果は消さない。
+            print("\n  計測する件がありません。結果を残したまま測り直すなら:\n"
+                  f"    --limit 64 --out {args.dir}/perf_run/"
+                  f"results_{model_key}_mode_{args.mode}.jsonl")
     finally:
         # 途中で落ちても、そこまでの計測は残す。
         # OOM のときこそ「どこでピークに達したか」が要る。
         if meter is not None:
             meter.sampler.stop()
-            dest = args.perf_out or (args.dir / f"perf_{model_key}_mode_{args.mode}.json")
+            # 結果の隣に置く。--out で別に出したときも一緒に移る。
+            dest = args.perf_out or (out.parent
+                                     / f"perf_{model_key}_mode_{args.mode}.json")
             print("\n" + meter.report())
             print(f"計測の明細: {meter.write(dest)}")
     return 0
