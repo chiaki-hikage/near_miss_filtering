@@ -54,8 +54,18 @@ input:
 # したがって時刻 t の ax_mps2 は t+0.25 s までのサンプルを見ている。
 # 積算すると *_win_* 系で最大 ±0.45 s の未来漏れになる。
 #
-#   guard  : CAN を t - guard_s までに切る。既存の compute_features をそのまま使う
-#   causal : 後ろ向きフィルタで再計算する (将来の差し替え先。未実装)
+#   guard      : CAN を t - guard_s までに切る。既存の compute_features をそのまま使う
+#   per_column : 列ごとに必要最小限だけ切る。未来参照量は smoothing 設定から導く
+#                (実測と一致することを確認済み。docs/vlm_review_poc.md §5.1)
+#                  yaw_rate / ay_can / brake  0.00 s  生値のまま -> t まで使える
+#                  steer_deg_s                0.05 s
+#                  v_mps / thw_s / ttc_s      0.10 s
+#                  ay_kin_mps2                0.20 s
+#                  ax_mps2                    0.25 s
+#   causal     : 後ろ向きフィルタで再計算する (将来の差し替え先。未実装)
+#
+# 既定は guard のまま。per_column にすると入力が変わるので、
+# 切り替えたら推論を流し直す必要がある。
 #
 # guard_s は結果メタに必ず記録する。検出遅れの分解能の下限を決めるため。
 # ---------------------------------------------------------------------------

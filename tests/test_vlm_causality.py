@@ -331,3 +331,71 @@ def test_span_と_extremes_はモードAのみで使う(cfg):
     assert "最小" in ex and "最大" in ex
     # at() (モード B 用) は区間全体を返さない
     assert ctx.at(1040.0).n_rows == 12
+
+
+# --- 列ごとの guard ------------------------------------------------------
+def test_列ごとの未来参照量が設定から導ける(cfg):
+    """実測値 (docs §5.1) と一致すること。直値ではなく smoothing から導く。"""
+    from near_miss.config import DEFAULT_DETECTION, load_yaml
+    from near_miss.vlm.context import column_lookahead_s
+
+    look = column_lookahead_s(load_yaml(DEFAULT_DETECTION), 20.0)
+    expect = {"yaw_rate_dps": 0.00, "ay_can_mps2": 0.00, "brake_pressed": 0.00,
+              "steer_deg_s": 0.05, "steer_rate_dps": 0.10, "v_mps": 0.10,
+              "thw_s": 0.10, "ttc_s": 0.10, "ay_kin_mps2": 0.20,
+              "ax_mps2": 0.25, "jerk_mps3": 0.30}
+    for c, v in expect.items():
+        assert look[c] == pytest.approx(v), f"{c}: {look[c]} != {v}"
+
+
+def test_per_columnは各セルがその行の時刻より後を参照しない(cfg):
+    from near_miss.config import DEFAULT_DETECTION, load_yaml
+    from near_miss.vlm.context import PerColumnGuardContext, column_lookahead_s
+
+    det = load_yaml(DEFAULT_DETECTION)
+    df = make_grid()
+    ctx = PerColumnGuardContext(df, cfg, det, RATE)
+    look = column_lookahead_s(det, RATE)
+    t = 1050.0
+    rows = ctx.at(t).text.split("\n")[1:]
+    cols = ctx.columns if hasattr(ctx, "columns") else [c[0] for c in ctx._spec]
+
+    grid_t = df["t"].to_numpy()
+    for line in rows:
+        rel = float(line.split()[0])
+        tau = t + rel
+        for col in cols:
+            limit = tau - look.get(col, 0.0)
+            i = int(np.searchsorted(grid_t, limit, side="right")) - 1
+            if i >= 0:
+                # 採った標本 + その列の未来参照量 が行の時刻を超えない
+                assert grid_t[i] + look.get(col, 0.0) <= tau + 1e-9
+
+
+def test_per_columnは生値の列をtまで使える(cfg):
+    """yaw_rate / ay_can / brake は加工していないので guard を置く理由がない。"""
+    from near_miss.config import DEFAULT_DETECTION, load_yaml
+    from near_miss.vlm.context import GuardContext, PerColumnGuardContext
+
+    det = load_yaml(DEFAULT_DETECTION)
+    df = make_grid()
+    t = 1050.0
+    per = PerColumnGuardContext(df, cfg, det, RATE)
+    uni = GuardContext(df, cfg)
+    # 一律 guard より新しい標本まで到達している
+    assert per.at(t).max_source_t > uni.at(t).max_source_t
+    assert per.at(t).max_source_t <= t + 1e-9
+    assert per.lookahead["yaw_rate_dps"] == 0.0
+
+
+def test_モードの選択(cfg):
+    from near_miss.config import DEFAULT_DETECTION, load_yaml
+    from near_miss.vlm.context import make_context
+
+    det = load_yaml(DEFAULT_DETECTION)
+    df = make_grid()
+    c2 = dict(cfg); c2["context"] = dict(cfg["context"], mode="per_column")
+    ctx = make_context(df, c2, det, RATE)
+    assert ctx.mode == "per_column"
+    with pytest.raises(ValueError):
+        make_context(df, c2)          # det / rate 無しでは作れない

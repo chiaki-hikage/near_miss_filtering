@@ -44,6 +44,57 @@ import pandas as pd
 
 from .windows import can_sample_times
 
+# ---------------------------------------------------------------------------
+# 列ごとの未来参照量
+# ---------------------------------------------------------------------------
+# features.py の各列が「時刻 t の値を出すのに t+x までのサンプルを見ている」量。
+# **detection.yaml の smoothing から導く。** 直値で書くと、平滑化窓を変えたときに
+# 静かにずれる。導出は features.py の実装そのものに対応する。
+#
+#   moving_average(win)  対称カーネル (偶数なら +1 して奇数化) -> 片側 win//2
+#   derivative()         中心差分                              -> 片側 1 サンプル
+#
+# 実測 (20 Hz / 現行の smoothing) と一致することを確認済み:
+#   yaw_rate_dps / ay_can_mps2 / brake_pressed  0.00 s   生値のまま
+#   steer_deg_s                                 0.05 s
+#   v_mps / steer_rate_dps / thw_s / ttc_s      0.10 s
+#   ay_kin_mps2                                 0.20 s
+#   ax_mps2                                     0.25 s
+#   jerk_mps3                                   0.30 s
+
+
+def _half_s(seconds: float, rate_hz: float) -> float:
+    """対称移動平均の片側の広がり [秒]。signals.moving_average と同じ丸め方。"""
+    from ..signals import window_samples   # signals.moving_average と同じ関数を使う
+
+    w = window_samples(float(seconds), rate_hz)
+    if w % 2 == 0:
+        w += 1
+    return (w // 2) / rate_hz
+
+
+def column_lookahead_s(det_cfg: dict[str, Any], rate_hz: float) -> dict[str, float]:
+    """列ごとの未来参照量 [秒] を smoothing 設定から導く。"""
+    sm = det_cfg["smoothing"]
+    d = 1.0 / rate_hz                       # 中心差分の片側
+    v = _half_s(sm["speed_window_s"], rate_hz)
+    acc = _half_s(sm["accel_window_s"], rate_hz)
+    st = _half_s(sm["steer_window_s"], rate_hz)
+    ax = v + d + acc
+    return {
+        # 生値。グリッドに載せただけで加工していない
+        "yaw_rate_dps": 0.0, "ay_can_mps2": 0.0, "brake_pressed": 0.0,
+        "steer_deg_s": st,
+        "steer_rate_dps": st + d,
+        "v_mps": v,
+        "thw_s": v, "ttc_s": v,             # ego_v = v_mps 由来。レーダ側は因果
+        "lead_distance_m": 0.0,
+        "ay_kin_mps2": v + acc,
+        "ax_mps2": ax,
+        "jerk_mps3": ax + d,
+    }
+
+
 
 @dataclass
 class ContextRender:
@@ -181,6 +232,87 @@ class GuardContext:
         return " / ".join(out)
 
 
+class PerColumnGuardContext:
+    """列ごとに必要最小限だけ手前で切る。
+
+    一律 guard は、最も未来を見ている列 (ax_mps2 の 0.25 秒) に全列を合わせる。
+    生値のまま使える yaw_rate / ay_can / brake まで 0.5 秒古くする必要はない。
+
+    行の時刻は t まで刻み、**各セルは「その行の時刻より後を参照しない最新の値」**を
+    採る。列 c の値は s + lookahead[c] <= tau を満たす最大の s から採るので、
+    セル単位で因果性が保たれる。
+
+    代償として、同じ行でも列によって値の鮮度が違う。実運用のセンサ遅延と同じ状況で、
+    プロンプトには列ごとの遅れを明記する。
+    """
+
+    mode = "per_column"
+
+    def __init__(self, df: pd.DataFrame, cfg: dict[str, Any],
+                 det_cfg: dict[str, Any], rate_hz: float) -> None:
+        if "t" not in df.columns:
+            raise ValueError("グリッドに列 't' がありません")
+        self._cfg = cfg
+        self._df = df
+        self._t = df["t"].to_numpy(dtype=float)
+        self._look = column_lookahead_s(det_cfg, rate_hz)
+        self._spec = [tuple(c) for c in cfg["context"]["columns"]
+                      if str(c[0]) in df.columns]
+        self._missing_cols = [str(c[0]) for c in cfg["context"]["columns"]
+                              if str(c[0]) not in df.columns]
+        # 表としての一律 guard は無いが、最も遅い列の遅れは記録しておく
+        self.guard_s = max((self._look.get(c[0], 0.0) for c in self._spec), default=0.0)
+
+    @property
+    def missing_columns(self) -> list[str]:
+        return list(self._missing_cols)
+
+    @property
+    def lookahead(self) -> dict[str, float]:
+        return {c[0]: self._look.get(c[0], 0.0) for c in self._spec}
+
+    def latency_note(self) -> str:
+        """列ごとの遅れをプロンプトに添える一文。"""
+        parts = [f"{name} {self._look.get(col, 0.0):.2f}"
+                 for col, name, _u, _d, _s in self._spec
+                 if self._look.get(col, 0.0) > 0]
+        return ("各信号は処理の都合で遅れがあります (秒): " + " / ".join(parts)
+                if parts else "")
+
+    def at(self, t: float) -> ContextRender:
+        # 一律 guard を引かず、行は t まで刻む
+        cfg2 = dict(self._cfg)
+        cfg2["context"] = dict(self._cfg["context"], guard_s=0.0)
+        times = can_sample_times(t, cfg2)
+
+        head = ["時刻"] + [f"{name}[{unit}]" for _c, name, unit, _d, _s in self._spec]
+        lines = ["  ".join(head)]
+        used: list[float] = []
+        missing = 0
+        for tau in times:
+            cells = [f"{tau - t:+6.2f}"]
+            row_missing = False
+            for col, _name, _unit, digits, scale in self._spec:
+                limit = tau - self._look.get(col, 0.0)
+                i = int(np.searchsorted(self._t, limit, side="right")) - 1
+                if i < 0:
+                    cells.append("-")
+                    row_missing = True
+                    continue
+                used.append(float(self._t[i]))
+                v = self._df[col].to_numpy(dtype=float)[i]
+                cells.append("-" if not np.isfinite(v) else f"{v * float(scale):.{int(digits)}f}")
+            missing += int(row_missing)
+            lines.append("  ".join(cells))
+
+        return ContextRender(
+            text="\n".join(lines),
+            max_source_t=max(used) if used else float("nan"),
+            n_rows=len(times), missing=missing,
+            columns=[c[0] for c in self._spec],
+        )
+
+
 class CausalContext:
     """causal 方式 (未実装)。後ろ向きフィルタで特徴量を作り直す。
 
@@ -198,10 +330,16 @@ class CausalContext:
         )
 
 
-def make_context(df: pd.DataFrame, cfg: dict[str, Any]) -> CanContext:
+def make_context(df: pd.DataFrame, cfg: dict[str, Any],
+                 det_cfg: dict[str, Any] | None = None,
+                 rate_hz: float | None = None) -> CanContext:
     mode = str(cfg["context"]["mode"])
     if mode == "guard":
         return GuardContext(df, cfg)
+    if mode == "per_column":
+        if det_cfg is None or rate_hz is None:
+            raise ValueError("per_column には detection 設定とグリッド周波数が要ります")
+        return PerColumnGuardContext(df, cfg, det_cfg, rate_hz)
     if mode == "causal":
         return CausalContext(df, cfg)
     raise ValueError(f"未知の context.mode: {mode}")

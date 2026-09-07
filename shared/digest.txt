@@ -1,0 +1,59 @@
+*** VLM PoC Phase1 digest ***
+config_hash=cf10273e9f prompt=v1 guard=0.5 stride=0.5 debounce=2
+n_results=5156 models=cosmos_reason1_7b,echo,qwen2_5_vl_7b,qwen3_vl_30b_a3b,qwen3_vl_8b
+
+[A] model cond TP FN FP TN kappa schema_err rep_stable
+    echo A 0 1 0 0 +0.000 0 1/1
+    echo B 0 1 0 0 +0.000 0 1/1
+    echo C 0 1 0 0 +0.000 0 1/1
+    echo D 0 1 0 0 +0.000 0 1/1
+    qwen2_5_vl_7b A 4 4 12 11 -0.016 0 30/31
+    qwen2_5_vl_7b B 4 4 13 11 -0.030 0 28/32
+    qwen2_5_vl_7b C 6 2 18 4 -0.042 0 31/31
+    qwen2_5_vl_7b D 6 1 17 3 +0.004 0 25/29
+    echo delta C-B: TP+0 FP+0 kappa+0.000
+    echo delta C-A: TP+0 FP+0 kappa+0.000
+    echo evidence(C) video/both/can/insuf=0/4/0/0
+    qwen2_5_vl_7b delta C-B: TP+2 FP+5 kappa-0.012
+    qwen2_5_vl_7b delta C-A: TP+2 FP+6 kappa-0.026
+    qwen2_5_vl_7b evidence(C) video/both/can/insuf=20/1/0/0
+
+[B-neg] model clean qp_clean episodes ratio_med ratio_max minutes
+    cosmos_reason1_7b 22/24 24/24 0 0.000 0.167 6.6
+    qwen2_5_vl_7b 19/24 15/24 17 0.046 0.815 7.6
+    qwen3_vl_30b_a3b 8/24 2/24 60 0.605 0.862 7.6
+    qwen3_vl_8b 12/24 18/24 9 0.007 0.448 7.6
+
+[B-pos] model event cue det d_onset d_apparent floor partial
+    cosmos_reason1_7b P01 cut_in N - - 0.00 0
+    cosmos_reason1_7b P02 cut_in N - - 0.00 0
+    cosmos_reason1_7b P03 cut_in N - - 0.00 0
+    cosmos_reason1_7b P04 other N - - 0.00 0
+    cosmos_reason1_7b P05 cut_in N - - 0.00 0
+    cosmos_reason1_7b P06 lead_brake N - - 0.00 0
+    cosmos_reason1_7b P07 cut_in N - - 0.00 0
+    cosmos_reason1_7b P08 crossing N - - 0.10 2
+    qwen2_5_vl_7b P01 cut_in N - - 0.00 0
+    qwen2_5_vl_7b P02 cut_in Y -0.05 -1.05 0.00 0
+    qwen2_5_vl_7b P03 cut_in Y +0.27 -2.73 0.00 0
+    qwen2_5_vl_7b P04 other N - - 0.00 0
+    qwen2_5_vl_7b P05 cut_in Y +6.66 +2.66 0.00 0
+    qwen2_5_vl_7b P06 lead_brake N - - 0.00 0
+    qwen2_5_vl_7b P07 cut_in Y +6.51 +2.51 0.00 0
+    qwen2_5_vl_7b P08 crossing Y +2.10 +1.10 0.10 7
+    qwen3_vl_30b_a3b P01 cut_in Y -1.80 -3.80 0.00 0
+    qwen3_vl_30b_a3b P02 cut_in Y +11.05 +12.05 0.00 0
+    qwen3_vl_30b_a3b P03 cut_in Y +16.23 +17.23 0.00 0
+    qwen3_vl_30b_a3b P04 other Y -1.64 -4.64 0.00 0
+    qwen3_vl_30b_a3b P05 cut_in Y -1.34 -5.34 0.00 0
+    qwen3_vl_30b_a3b P06 lead_brake Y -1.90 -5.90 0.00 0
+    qwen3_vl_30b_a3b P07 cut_in Y +0.51 -1.49 0.00 0
+    qwen3_vl_30b_a3b P08 crossing Y +0.60 -0.40 0.10 7
+    qwen3_vl_8b P01 cut_in N - - 0.00 0
+    qwen3_vl_8b P02 cut_in N - - 0.00 0
+    qwen3_vl_8b P03 cut_in N - - 0.00 0
+    qwen3_vl_8b P04 other N - - 0.00 0
+    qwen3_vl_8b P05 cut_in Y +8.16 +4.16 0.00 0
+    qwen3_vl_8b P06 lead_brake Y +1.04 -2.96 0.00 0
+    qwen3_vl_8b P07 cut_in N - - 0.00 0
+    qwen3_vl_8b P08 crossing Y +1.00 +0.00 0.10 7

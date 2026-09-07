@@ -27,9 +27,16 @@ def _can_block(req: dict[str, Any], cfg: dict[str, Any]) -> str:
     if not table.strip():
         return ""
     if req["mode"] == "online":
-        head = (f"\n## 車両信号\n\n評価時刻より {req.get('guard_s', 0)} 秒手前までの値です"
-                "（信号処理の遅れのため）。\n時刻は評価時刻からの相対秒。"
-                "速度は km/h、加速度は m/s^2。\n")
+        lat = (req.get("can_latency") or "").strip()
+        if lat:
+            # 列ごとに遅れが違う場合。どの信号がどれだけ古いかを明示する。
+            head = ("\n## 車両信号\n\n時刻は評価時刻からの相対秒。"
+                    "速度は km/h、加速度は m/s^2。\n"
+                    f"{lat}\n")
+        else:
+            head = (f"\n## 車両信号\n\n評価時刻より {req.get('guard_s', 0)} 秒手前までの値です"
+                    "（信号処理の遅れのため）。\n時刻は評価時刻からの相対秒。"
+                    "速度は km/h、加速度は m/s^2。\n")
     else:
         head = ("\n## 車両信号\n\n区間の先頭からの相対秒。"
                 "速度は km/h、加速度は m/s^2。\n")

@@ -274,6 +274,9 @@ def score_positive(series, onset: pd.DataFrame, cfg, out: Path) -> pd.DataFrame:
             "filter_lag_s": r.get("filter_lag_s"),
             "n_partial": int(sum(s.partial)),
             "n_points": s.n,
+            # positive クリップで警報状態だった時刻の割合。
+            # negative 側の同じ値と比べて初めて「識別できているか」が分かる。
+            "duration_ratio": round(duration_ratio(s, states), 4),
         })
     df = pd.DataFrame(rows)
     if df.empty:
@@ -290,6 +293,8 @@ def score_positive(series, onset: pd.DataFrame, cfg, out: Path) -> pd.DataFrame:
         print(g[cols].to_string(index=False))
         det = g[g.detected]
         print(f"\n  検出できた: {fmt_count(int(g.detected.sum()), len(g), ci=False)}")
+        print(f"  positive クリップの警報時間比: 中央 {np.median(g.duration_ratio):.1%}"
+              "  ← negative 側と比べること")
         if not det.empty:
             early = det[det.delta_onset_s <= det.latency_floor_s + 1e-9]
             print(f"  人手のオンセット以前に警報: {fmt_count(len(early), len(det), ci=False)}"
@@ -387,6 +392,20 @@ def brief(res: pd.DataFrame, a: pd.DataFrame, neg: pd.DataFrame,
                      f"{int(g.episode_clean.sum())}/{len(g)} {int(g.n_episodes.sum())} "
                      f"{np.median(g.duration_ratio):.3f} {g.duration_ratio.max():.3f} "
                      f"{g.span_s.sum() / 60:.1f}")
+
+    if not pos.empty and not neg.empty:
+        L.append("")
+        L.append("[識別力] model pos_ratio_med neg_ratio_med lift detected")
+        for model, gp in pos.groupby("model"):
+            gn = neg[neg.model == model]
+            if gn.empty:
+                continue
+            pr = float(np.median(gp.duration_ratio))
+            nr = float(np.median(gn.duration_ratio))
+            lift = "inf" if nr == 0 and pr > 0 else ("-" if pr == nr == 0 else f"{pr / nr:.1f}"
+                                                     if nr else "inf")
+            L.append(f"  {model} {pr:.3f} {nr:.3f} {lift} "
+                     f"{int(gp.detected.sum())}/{len(gp)}")
 
     if not pos.empty:
         L.append("")

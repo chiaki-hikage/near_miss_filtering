@@ -19,6 +19,18 @@ Mac でプロンプト組み立てと入出力の確認ができる。
   uv run python scripts/run_vlm_review.py --model qwen3_vl_8b --mode b
 
 途中で落ちても、書き終えた分は飛ばして続きから流せる (--resume は既定)。
+
+**時間と資源は既定で計測する** (--no-perf で止める)。判定の中身には触らない。
+実行の最後に要約を出し、<dir>/perf_<model>_mode_<x>.json に明細を書く。
+
+  モデルロード時間 / 1 件あたりの推論時間 / 総処理時間 / 映像 1 分あたりの処理時間
+  GPU メモリ (起動前・ロード後・推論中ピーク) と GPU 使用率
+  CPU 使用率と RAM (機械全体、および自プロセス + 子プロセスの RSS)
+  GPU 名 / モデル / dtype / max_model_len / 入力フレーム数などの測定条件
+
+  # 短く測るだけ (結果を汚さないよう別ディレクトリに出す)
+  uv run python scripts/run_vlm_review.py --model qwen3_vl_8b --mode b \
+      --limit 64 --dir out/chunk1/vlm --perf-out out/perf_qwen3_8b.json
 """
 
 from __future__ import annotations
@@ -30,6 +42,7 @@ import _bootstrap  # noqa: F401
 
 from near_miss.config import load_yaml
 from near_miss.vlm.adapters import make_adapter
+from near_miss.vlm.perf import Meter
 from near_miss.vlm.runner import Runner, done_ids, load_requests
 
 
@@ -50,6 +63,12 @@ def parse_args() -> argparse.Namespace:
                    help="指定しなければ configs/vlm.yaml の models.<key>.max_model_len")
     p.add_argument("--gpu-util", type=float, default=0.85)
     p.add_argument("--no-resume", action="store_true", help="既存の結果を無視して最初から")
+    p.add_argument("--no-perf", action="store_true",
+                   help="時間と GPU メモリの計測をしない (既定は計測する)")
+    p.add_argument("--perf-interval", type=float, default=0.2,
+                   help="GPU メモリの採取間隔 [秒] (既定 0.2)")
+    p.add_argument("--perf-out", type=Path, default=None,
+                   help="計測結果の書き出し先 (既定 <dir>/perf_<model>_mode_<x>.json)")
     return p.parse_args()
 
 
@@ -98,20 +117,51 @@ def main() -> int:
     if max_len:
         print(f"max_model_len: {max_len}"
               + ("  (コマンドラインの指定)" if args.max_model_len else "  (設定から)"))
+    meter = None
+    if not args.no_perf:
+        meter = Meter(model_key=model_key, model_id=adapter.model_id,
+                      mode=args.mode, conditions=args.conditions or "",
+                      interval=args.perf_interval)
+        # 測定条件。後から「何を測ったのか」が分かるように全部残す。
+        inp = cfg["input"]
+        meter.settings = {
+            "batch": args.batch, "gpu_util": args.gpu_util,
+            "max_model_len": max_len, "reps": reps,
+            "video_long_edge": inp["video_long_edge"], "video_fps": inp["video_fps"],
+            "window_video_s": inp["window_video_s"], "window_can_s": inp["window_can_s"],
+            "temperature": temp, "max_tokens": cfg["decode"]["max_tokens"],
+            "prompt_version": cfg["prompt_version"],
+        }
+        # モデルを読む前の使用量を「通常時」の基準にする。
+        meter.begin()
+        gpus = ", ".join(d["name"] for d in meter.gpu.devices if "name" in d)
+        print(f"計測     : {meter.gpu.source or '時間のみ (NVML/nvidia-smi 無し)'}"
+              + (f"  {gpus}" if gpus else ""))
+
     runner = Runner(model_key, cfg, adapter,
                     max_model_len=max_len,
-                    gpu_memory_utilization=args.gpu_util)
+                    gpu_memory_utilization=args.gpu_util,
+                    meter=meter)
     total = 0
-    for rep in range(reps):
-        todo = [r for r in reqs if f"{r['request_id']}|{rep}" not in already]
-        if args.limit:
-            todo = todo[: args.limit]
-        if not todo:
-            print(f"\n反復 {rep}: 済")
-            continue
-        print(f"\n反復 {rep}: {len(todo)} 件")
-        total += runner.run(todo, rep, out, batch=args.batch)
-    print(f"\n書き出し {total} 件 -> {out}")
+    try:
+        for rep in range(reps):
+            todo = [r for r in reqs if f"{r['request_id']}|{rep}" not in already]
+            if args.limit:
+                todo = todo[: args.limit]
+            if not todo:
+                print(f"\n反復 {rep}: 済")
+                continue
+            print(f"\n反復 {rep}: {len(todo)} 件")
+            total += runner.run(todo, rep, out, batch=args.batch)
+        print(f"\n書き出し {total} 件 -> {out}")
+    finally:
+        # 途中で落ちても、そこまでの計測は残す。
+        # OOM のときこそ「どこでピークに達したか」が要る。
+        if meter is not None:
+            meter.sampler.stop()
+            dest = args.perf_out or (args.dir / f"perf_{model_key}_mode_{args.mode}.json")
+            print("\n" + meter.report())
+            print(f"計測の明細: {meter.write(dest)}")
     return 0
 
 

@@ -236,7 +236,7 @@ def _write_requests(plans, grids, cfg, args, cfg_hash: str) -> int:
         df = grids.get(ep.drive_id)
         if df is None:
             continue
-        ctx = make_context(df, cfg)
+        ctx = make_context(df, cfg, det, float(det["resample"]["rate_hz"]))
         if getattr(ctx, "missing_columns", None):
             miss_cols.update(ctx.missing_columns)
 
@@ -267,6 +267,7 @@ def _write_requests(plans, grids, cfg, args, cfg_hash: str) -> int:
                 "span_s": round(times[-1] - times[0], 2),
                 "hint": ep.event_types if spec["hint"] else "",
                 "guard_s": ctx.guard_s, "context_mode": ctx.mode,
+                "can_latency": getattr(ctx, "latency_note", lambda: "")(),
                 "config_hash": cfg_hash,
             }
             fa.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -299,6 +300,7 @@ def _write_requests(plans, grids, cfg, args, cfg_hash: str) -> int:
                 "can_max_source_t": None if not np.isfinite(r.max_source_t) else round(r.max_source_t, 3),
                 "hint": "",
                 "guard_s": ctx.guard_s, "context_mode": ctx.mode,
+                "can_latency": getattr(ctx, "latency_note", lambda: "")(),
                 "config_hash": cfg_hash,
             }
             fb.write(json.dumps(rec, ensure_ascii=False) + "\n")

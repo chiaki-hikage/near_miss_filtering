@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable
 
+from .perf import Meter, request_video_s, sync
 from .prompt import build as build_prompt
 from .schema import build_schema, validate
 
@@ -69,13 +71,16 @@ class Runner:
 
     def __init__(self, model_key: str, cfg: dict[str, Any], adapter,
                  max_model_len: int | None = None,
-                 gpu_memory_utilization: float = 0.85) -> None:
+                 gpu_memory_utilization: float = 0.85,
+                 meter: Meter | None = None) -> None:
         self.cfg = cfg
         self.model_key = model_key
         self.adapter = adapter
         self._llm = None
         self._max_model_len = max_model_len
         self._gpu_util = gpu_memory_utilization
+        # 計測だけを持つ。None なら何もしない。判定の中身には触らせない。
+        self.meter = meter
 
     def _ensure(self):
         if self._llm is not None or self.adapter.name == "echo":
@@ -91,7 +96,12 @@ class Runner:
         limits = self.adapter.limits()
         if limits:
             kw["limit_mm_per_prompt"] = limits
+        t0 = time.perf_counter()
         self._llm = LLM(**kw)
+        load_s = time.perf_counter() - t0
+        if self.meter is not None:
+            # dtype や KV キャッシュの設定は LLM を作った後でないと引けない。
+            self.meter.after_load(load_s, self._llm)
 
     def _sampling(self, mode: str):
         d = self.cfg["decode"]
@@ -115,16 +125,32 @@ class Runner:
         reqs = list(requests)
         if not reqs:
             return 0
-        self._ensure()
+        if self.meter is not None:
+            with self.meter.phase("load"):
+                self._ensure()
+        else:
+            self._ensure()
         mode = "clip" if reqs[0]["mode"] == "clip" else "online"
         sp = self._sampling(mode)
         n = 0
-        with out.open("a", encoding="utf-8") as f:
+        infer = (self.meter.phase("infer") if self.meter is not None
+                 else _nullphase())
+        with out.open("a", encoding="utf-8") as f, infer:
             for i in range(0, len(reqs), batch):
                 chunk = reqs[i:i + batch]
+                # GPU の呼び出しは非同期。バッチの前後で待ってから測る。
+                # (engine が別プロセスなら generate の戻りが同期点になる)
+                sync()
                 t0 = time.perf_counter()
                 texts = self._generate(chunk, sp)
-                dt = (time.perf_counter() - t0) / max(len(chunk), 1)
+                sync()
+                batch_s = time.perf_counter() - t0
+                dt = batch_s / max(len(chunk), 1)
+                if self.meter is not None:
+                    self.meter.add_batch(
+                        len(chunk), batch_s,
+                        sum(request_video_s(r, self.cfg) for r in chunk),
+                        [int(r.get("n_frames", len(r.get("frames", [])))) for r in chunk])
                 for req, raw in zip(chunk, texts):
                     resp, note = parse_response(raw)
                     errs = validate(resp, mode) if resp else ["応答が空"]
@@ -164,6 +190,12 @@ class Runner:
             inputs.append(item)
         outs = self._llm.generate(inputs, sp)
         return [o.outputs[0].text for o in outs]
+
+
+@contextmanager
+def _nullphase():
+    """計測しないときの空の区間。run() の with を 1 本にまとめるためだけ。"""
+    yield
 
 
 def _echo(req: dict[str, Any], cfg: dict[str, Any]) -> str:
