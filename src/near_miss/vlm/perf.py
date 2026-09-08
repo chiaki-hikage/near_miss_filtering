@@ -338,6 +338,20 @@ def engine_info(llm: Any) -> dict[str, Any]:
             v = getattr(mc, attr, None)
             if v is not None:
                 out[key] = str(v)
+    # 実際に効いた同時実行数。こちらの指定が通ったかを後から確かめられるように。
+    for path in (("llm_engine", "vllm_config", "scheduler_config"),
+                 ("llm_engine", "scheduler_config")):
+        obj: Any = llm
+        for attr in path:
+            obj = getattr(obj, attr, None)
+            if obj is None:
+                break
+        if obj is not None:
+            for k in ("max_num_seqs", "max_num_batched_tokens"):
+                v = getattr(obj, k, None)
+                if v is not None:
+                    out[k] = v
+            break
     for path, key in ((("llm_engine", "vllm_config", "cache_config"), "cache"),
                       (("llm_engine", "cache_config"), "cache")):
         obj: Any = llm
@@ -750,6 +764,12 @@ class Meter:
         L.append(f"  GPU        : {gpus}")
         L.append(f"  モデル     : {c['model_id']}")
         eng = c.get("engine") or {}
+        if eng.get("max_num_seqs"):
+            L.append(f"  同時実行   : max_num_seqs {eng['max_num_seqs']}"
+                     + (f"  max_num_batched_tokens {eng['max_num_batched_tokens']}"
+                        if eng.get("max_num_batched_tokens") else "")
+                     + (f"  KV ブロック {eng['num_gpu_blocks']:,}"
+                        if eng.get("num_gpu_blocks") else ""))
         if eng:
             L.append("  dtype      : " + str(eng.get("dtype", "?"))
                      + f"  max_model_len {eng.get('max_model_len', '?')}"

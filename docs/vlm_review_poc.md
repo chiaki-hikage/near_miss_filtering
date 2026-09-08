@@ -647,6 +647,31 @@ uv run python scripts/run_vlm_review.py --model qwen3_vl_8b --mode b --limit 64 
 
 計測の明細は結果の隣（この例では `out/chunk1/vlm/perf_run/`）に置かれる。
 
+### 9.4 スループット — batch と concurrency は別物
+
+`runner.py` は `--batch` 件ずつ `LLM.generate()` にリストで渡す。
+**チャンクの中は continuous batching**（engine が同時に走らせる）だが、
+**チャンクの境目は同期の壁**になる。`--batch` は書き出しと再開の単位であって、
+並列度の指定ではない。
+
+| つまみ | 何を決めるか | 既定 |
+|---|---|---|
+| `--batch` | 1 度に engine へ渡す件数 = 書き出しの単位 | 32 |
+| `--max-num-seqs` | engine が同時に走らせる列の数 = **実際の並列度** | vLLM 任せ（256） |
+| `--max-num-batched-tokens` | 1 スケジューラ手順のトークン予算 | vLLM 任せ |
+| `--gpu-util` | 起動時に確保する VRAM の割合（KV キャッシュの量） | 0.85 |
+
+**`--batch` が `max_num_seqs` より小さいと、`max_num_seqs` は効かない。**
+32 件しか渡していなければ 33 列目は存在しない。上げるなら両方上げる。
+
+`--batch` を上げる代償はホスト RAM。デコード済みの配列は 1 件あたり
+8 × 640 × 480 × 3 = **7.0 MB** で、batch 256 なら 1.8 GB、
+全 1,190 件を一度に渡すと 8.2 GB になる（機械は 64 GB）。
+
+**上げる前に §9.3 の GPU 使用率を見ること。** すでに 95% 近ければ
+並列度を上げても詰まるだけで、律速は視覚エンコーダ側にある。
+50〜60% なら余地がある。計測がそのまま判断材料になる。
+
 CPU / RAM は `psutil` があれば使い、無ければ `/proc` を直接読む。
 `top` を 0.2 秒ごとに起動はしない（top が出すのと同じ
 `/proc/stat` と `/proc/meminfo` を読んでいる）。EC2 では vllm が `psutil` を

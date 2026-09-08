@@ -66,6 +66,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-model-len", type=int, default=None,
                    help="指定しなければ configs/vlm.yaml の models.<key>.max_model_len")
     p.add_argument("--gpu-util", type=float, default=0.85)
+    p.add_argument("--max-num-seqs", type=int, default=None,
+                   help="vLLM が同時に走らせる列の数 (既定 vLLM 任せ = 256)。"
+                        "--batch とは別物で、こちらが実際の並列度")
+    p.add_argument("--max-num-batched-tokens", type=int, default=None,
+                   help="1 スケジューラ手順あたりのトークン予算")
     p.add_argument("--no-resume", action="store_true", help="既存の結果を無視して最初から")
     p.add_argument("--no-perf", action="store_true",
                    help="時間と GPU メモリの計測をしない (既定は計測する)")
@@ -131,6 +136,8 @@ def main() -> int:
         inp = cfg["input"]
         meter.settings = {
             "batch": args.batch, "gpu_util": args.gpu_util,
+            "max_num_seqs": args.max_num_seqs,
+            "max_num_batched_tokens": args.max_num_batched_tokens,
             "max_model_len": max_len, "reps": reps,
             "video_long_edge": inp["video_long_edge"], "video_fps": inp["video_fps"],
             "window_video_s": inp["window_video_s"], "window_can_s": inp["window_can_s"],
@@ -146,6 +153,8 @@ def main() -> int:
     runner = Runner(model_key, cfg, adapter,
                     max_model_len=max_len,
                     gpu_memory_utilization=args.gpu_util,
+                    max_num_seqs=args.max_num_seqs,
+                    max_num_batched_tokens=args.max_num_batched_tokens,
                     meter=meter)
     total = 0
     try:

@@ -161,6 +161,17 @@ class _NoGpu:
         return False
 
 
+def test_runner_keeps_concurrency_separate_from_batch():
+    """--batch と max_num_seqs は別物。Runner が両方を保持する。"""
+    from near_miss.vlm.adapters import make_adapter
+    r = Runner("echo", CFG, make_adapter("echo", "echo", CFG),
+               max_num_seqs=512, max_num_batched_tokens=16384)
+    assert r._max_num_seqs == 512
+    assert r._max_num_batched_tokens == 16384
+    # 既定は vLLM 任せ (None なら LLM() に渡さない)
+    assert Runner("echo", CFG, make_adapter("echo", "echo", CFG))._max_num_seqs is None
+
+
 def test_runner_meter_counts_every_request(tmp_path):
     """echo 経路で Runner に挿しても、判定の出力は変わらず計測だけ増える。"""
     cfg = dict(CFG) | {"repeats": {"mode_b": 1}}

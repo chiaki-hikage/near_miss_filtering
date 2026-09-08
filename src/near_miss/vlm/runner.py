@@ -72,6 +72,8 @@ class Runner:
     def __init__(self, model_key: str, cfg: dict[str, Any], adapter,
                  max_model_len: int | None = None,
                  gpu_memory_utilization: float = 0.85,
+                 max_num_seqs: int | None = None,
+                 max_num_batched_tokens: int | None = None,
                  meter: Meter | None = None) -> None:
         self.cfg = cfg
         self.model_key = model_key
@@ -79,6 +81,11 @@ class Runner:
         self._llm = None
         self._max_model_len = max_model_len
         self._gpu_util = gpu_memory_utilization
+        # vLLM の同時実行数。run() の batch とは別物。
+        #   batch          こちらが 1 度に engine へ渡す件数 (書き出しの単位)
+        #   max_num_seqs   engine が同時に走らせる列の数 (実際の並列度)
+        self._max_num_seqs = max_num_seqs
+        self._max_num_batched_tokens = max_num_batched_tokens
         # 計測だけを持つ。None なら何もしない。判定の中身には触らせない。
         self.meter = meter
 
@@ -93,6 +100,10 @@ class Runner:
         }
         if self._max_model_len:
             kw["max_model_len"] = self._max_model_len
+        if self._max_num_seqs:
+            kw["max_num_seqs"] = self._max_num_seqs
+        if self._max_num_batched_tokens:
+            kw["max_num_batched_tokens"] = self._max_num_batched_tokens
         limits = self.adapter.limits()
         if limits:
             kw["limit_mm_per_prompt"] = limits
