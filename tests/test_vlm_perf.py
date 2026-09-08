@@ -257,3 +257,50 @@ def test_single_batch_has_no_excl_first():
     m = perf.Meter(model_key="m", model_id="id", mode="b", gpu=_NoGpu())
     m.add_batch(2, 20.0, 1.0, [8, 8])
     assert m.summary()["時間"]["per_request_mean_excl_first_s"] is None
+
+
+def _write(p: Path, n: int) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"\0" * n)
+
+
+def test_model_disk_local_directory(tmp_path):
+    """ローカルのパスを渡した場合。重みファイルだけの合計も出す。"""
+    _write(tmp_path / "model-00001.safetensors", 3 * 1024 * 1024)
+    _write(tmp_path / "model-00002.safetensors", 1 * 1024 * 1024)
+    _write(tmp_path / "tokenizer.json", 512 * 1024)
+    d = perf.model_disk(str(tmp_path))
+    assert d["weights_mb"] == 4.0
+    assert d["total_mb"] == 4.5
+    assert d["n_weight_files"] == 2 and d["n_files"] == 3
+
+
+def test_model_disk_hf_cache_counts_blob_once(tmp_path, monkeypatch):
+    """HF のキャッシュは snapshots が blobs への symlink。二重に数えない。"""
+    repo = tmp_path / "models--Qwen--Qwen3-VL-8B-Instruct"
+    blob = repo / "blobs" / "abc123"
+    _write(blob, 6 * 1024 * 1024)
+    snap = repo / "snapshots" / "rev1"
+    snap.mkdir(parents=True)
+    (snap / "model.safetensors").symlink_to(blob)
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
+
+    d = perf.model_disk("Qwen/Qwen3-VL-8B-Instruct")
+    assert d["total_mb"] == 6.0          # 12.0 になっていたら重複して数えている
+    assert d["weights_mb"] == 6.0
+    assert d["model_id"] == "Qwen/Qwen3-VL-8B-Instruct"
+
+
+def test_model_disk_missing_returns_empty(tmp_path, monkeypatch):
+    """見つからないときは空。推測で埋めない。"""
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
+    monkeypatch.setenv("HF_HOME", str(tmp_path / "nope"))
+    assert perf.model_disk("Qwen/does-not-exist") == {}
+
+
+def test_weights_appear_in_report(tmp_path, monkeypatch):
+    _write(tmp_path / "model.safetensors", 17 * 1024 * 1024)
+    m = perf.Meter(model_key="m", model_id=str(tmp_path), mode="b", gpu=_NoGpu())
+    m.after_load(1.0, llm=None)
+    assert m.summary()["条件"]["weights"]["weights_mb"] == 17.0
+    assert "重み" in m.report()

@@ -357,6 +357,68 @@ def engine_info(llm: Any) -> dict[str, Any]:
     return out
 
 
+def model_disk(model_id: str) -> dict[str, Any]:
+    """重みのディスク上の大きさ [MB]。
+
+    ローカルのパスならそのディレクトリを、Hugging Face のリポジトリ名なら
+    HF のキャッシュを見る。**取れなければ空を返す** (推測で埋めない)。
+
+    重みファイル (safetensors / bin) だけの合計も別に出す。リポジトリには
+    tokenizer や設定、元の .bin と .safetensors の両方が入っていることがあり、
+    総量は「モデルの大きさ」より大きく出るため。
+
+    bf16 で読む場合、この重みファイルの合計が VRAM 上の常駐量にほぼ一致する
+    (KV キャッシュと活性化は別)。
+    """
+    WEIGHT = (".safetensors", ".bin", ".pt", ".pth", ".gguf")
+
+    def walk(root: Path) -> dict[str, Any]:
+        seen: set[tuple[int, int]] = set()
+        total = weights = 0
+        n_files = n_weight = 0
+        for f in root.rglob("*"):
+            try:
+                stx = f.stat()          # symlink は実体を見る (HF は blobs への link)
+            except OSError:
+                continue
+            if not f.is_file():
+                continue
+            key = (stx.st_dev, stx.st_ino)
+            if key in seen:             # 同じ blob への複数の link を二重に数えない
+                continue
+            seen.add(key)
+            total += stx.st_size
+            n_files += 1
+            if f.suffix in WEIGHT:
+                weights += stx.st_size
+                n_weight += 1
+        if not n_files:
+            return {}
+        return {"path": str(root), "total_mb": round(total / MB, 1),
+                "weights_mb": round(weights / MB, 1),
+                "n_files": n_files, "n_weight_files": n_weight}
+
+    local = Path(model_id)
+    if local.is_dir():
+        return walk(local)
+
+    # HF のキャッシュ。環境変数の指定を順に見る。
+    roots = [os.environ.get("HF_HUB_CACHE"),
+             (os.environ.get("HF_HOME") or "") + "/hub" if os.environ.get("HF_HOME") else None,
+             str(Path.home() / ".cache" / "huggingface" / "hub")]
+    name = "models--" + model_id.replace("/", "--")
+    for r in roots:
+        if not r:
+            continue
+        repo = Path(r) / name
+        if repo.is_dir():
+            d = walk(repo)
+            if d:
+                d["model_id"] = model_id
+                return d
+    return {}
+
+
 # --------------------------------------------------------------------------
 # 標本採取
 # --------------------------------------------------------------------------
@@ -503,6 +565,7 @@ class Meter:
         self.baseline: dict[str, Any] = {}
         self.loaded: dict[str, Any] = {}
         self.engine: dict[str, Any] = {}
+        self.weights: dict[str, Any] = {}
         self.settings: dict[str, Any] = {}
         self.t_start = time.perf_counter()
 
@@ -542,6 +605,7 @@ class Meter:
         self.load_s = float(seconds)
         self.loaded = self._snapshot()
         self.engine = engine_info(llm)
+        self.weights = model_disk(self.model_id)
         torch_reset_peak()
 
     def add_batch(self, n: int, seconds: float, video_s: float,
@@ -575,6 +639,8 @@ class Meter:
                 "gpu": self.devices_note(),
                 "torch": torch_env(),
                 "engine": self.engine,
+                # 重みのディスク上の大きさ。bf16 なら VRAM 常駐量にほぼ一致する
+                "weights": self.weights,
                 "settings": self.settings,
                 "n_frames": self._frames_note(),
             },
@@ -689,6 +755,11 @@ class Meter:
                      + f"  max_model_len {eng.get('max_model_len', '?')}"
                      + (f"  量子化 {eng['quantization']}" if eng.get("quantization") else "")
                      + (f"  KV {eng['kv_cache_dtype']}" if eng.get("kv_cache_dtype") else ""))
+        w = c.get("weights") or {}
+        if w:
+            L.append(f"  重み       : {_g(w['weights_mb'])} "
+                     f"({w['n_weight_files']} ファイル)"
+                     f"   リポジトリ全体 {_g(w['total_mb'])}")
         fr = c.get("n_frames") or {}
         if fr:
             L.append(f"  入力フレーム: 平均 {fr['mean']} 枚 (最小 {fr['min']} / 最大 {fr['max']})"
