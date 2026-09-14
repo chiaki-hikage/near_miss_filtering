@@ -1,0 +1,78 @@
+# 高優先度ヒヤリハット候補の条件 (L3 の後段)
+#
+# 候補生成そのもの (detection.yaml) は変えない。**候補の集計値だけで絞る。**
+# severity では表現できない判別要素をここで扱う。
+#   - 車間距離そのもの (severity に入らない)
+#   - 複数量の連言 (severity は種別の数と超過量しか見ない)
+#
+# 根拠は comma2k19 Chunk_1 の人手ラベル 82 件 (risky 10)。
+# **positive 10 件なので暫定。** 閾値の確定には標本が足りない。
+
+version: v1
+
+# 無条件で採用する。車両自身が危険と判断した瞬間で、こちらが閾値を決める余地がない。
+always:
+  - abs_active_flag_max
+  - vsc_active_flag_max
+  # 滑り警告灯。**3 はイグニッション ON のランプチェック、4 が実作動。**
+  # TSS2 の 33.3 時間で値 3 が 20 件 (全部が車速 0)、値 4 が 9 件だった。
+  # 列名だけ書くと閾値 0.5 になり、ランプチェックを拾ってしまう。
+  - {feature: slip_warn_max, threshold: 3.5}
+  - precollision_active_max
+
+# いずれかが成立すれば採用 (OR)。
+# require_types のどれかを含む候補にだけ、その条件を課す。
+rules:
+  - name: cut_in_close
+    label: "至近距離の割り込み"
+    require_types: [cut_in_candidate]
+    # 人手判定 32 件で、risky 6 件はすべて車間 11.5 m 以下。11.7 m 以上は 0/19。
+    # THW ではなく**絶対距離**で切る。速度が 9〜32 m/s と幅があり、
+    # 同じ THW 0.40 でも 11.4 m (risky) と 12.5 m (非risky) に分かれるため。
+    all_of:
+      - {feature: lead_distance_m_min, op: le, threshold: 12.0}
+
+  - name: short_thw_close
+    label: "至近距離の車間詰まり"
+    require_types: [short_thw]
+    all_of:
+      - {feature: lead_distance_m_min, op: le, threshold: 12.0}
+
+  - name: hard_brake_strong_or_close
+    label: "強い制動、または至近での制動"
+    require_types: [hard_brake, panic_brake, panic_brake_pedal]
+    any_of:
+      - {feature: lead_distance_m_min, op: le, threshold: 12.0}
+      # 実測の分離点は -3.295。浮動小数で取り逃がさないよう -3.2 に置く。
+      - {feature: ax_mps2_min, op: le, threshold: -3.2}
+
+  - name: sharp_steer
+    label: "大きな操舵"
+    require_types: [hard_steer, weaving, counter_steer, lateral_accel]
+    # Chunk_1 + Chunk_2 の人手判定 40 件のうち、この規則が採ったのは 10 件で
+    # risky は 1 件だけだった (精度 10%。他の規則は 33〜50%)。
+    # 落ちた 9 件はすべて高速道路のカーブ・ランプで、
+    # 「多少揺れてはいるが蛇行ではない」「大きなカーブだが問題ない」。
+    #
+    # **大きさでは分離しない。** 10 件を並べると
+    #   risky    |ay| 2.58  |steer_rate| 42.6  横躍度 6.74
+    #   非 risky |ay| 2.52〜3.12  |steer_rate| 31.5〜68.8  横躍度 5.9〜11.6
+    # で完全に重なる。分かれるのは正味方位角変化だけ:
+    #   risky 4.96 deg / 非 risky 9.62〜20.27 deg
+    # 回避操作は元の向きへ戻り、カーブは戻らない。events 側の gate と同じ論理だが、
+    # gate は ±3 秒窓の判定で、候補集計値は候補窓全体の最大なので 15 を超える。
+    # **閾値 8.0 は positive 1 件で引いた暫定値。** 4.96 と 9.62 の間を取っただけ。
+    all_of:
+      - {feature: ay_kin_mps2_absmax, op: abs_ge, threshold: 2.5}
+      - {feature: steer_rate_dps_absmax, op: abs_ge, threshold: 30.0}
+      - {feature: net_heading_win_deg_max, op: lt, threshold: 8.0}
+
+  - name: risky_lane_change
+    label: "危険な車線変更"
+    require_types: [risky_lane_change]
+
+  - name: forward_critical
+    label: "衝突余裕の逼迫"
+    require_types: [low_ttc, closing_fast]
+    all_of:
+      - {feature: lead_distance_m_min, op: le, threshold: 20.0}

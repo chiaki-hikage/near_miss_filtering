@@ -53,7 +53,8 @@ scripts/
   plot_segment.py          1 セグメントの時系列を描く (--dataset / --context / --focus)
   inspect_segment.py       1 セグメントの中間結果と閾値までの余裕を見る
   validate_signals.py      車種設定の符号・前提を実データで検証する
-  screen_sideslip.py       横滑り候補の 2 段抽出を実データに通す
+  screen_sideslip.py       横滑りの抽出。beta の 2 段フィルタと直接証拠の 2 枝
+  scan_slip_flags.py       スリップの直接証拠を生 CAN のフラグだけで数える
   calibrate_beta_noise.py  横滑り角に載るセンサ雑音を直進区間から実測する
   validate_sideslip_filter.py  横滑りフィルタの再現率を KIT MSDM で測る
   check_env.py             実行環境が整っているかを確かめる

@@ -49,6 +49,7 @@ from .config import VehicleConfig
 from .features import compute_features
 from .io.canonical import SegmentRef, concat_segments
 from .pipeline import split_contiguous
+from .direct_slip import DirectSlipCounts, DirectSlipEvent, find_direct_slip
 from .sideslip import FilterCounts, SideslipCandidate, find_sideslip_candidates, stage1_mask
 from .signals import to_grid
 
@@ -87,6 +88,8 @@ class BlockOutcome:
 
     spans: list[tuple[int, float, float]]
     candidates: list[SideslipCandidate]
+    # スリップの直接証拠。beta を使う candidates とは独立の枝 (direct_slip.py)。
+    direct: list[DirectSlipEvent] = field(default_factory=list)
     dump: Any = None            # pd.DataFrame | None (--dump-stage1 のときだけ)
     n_segments: int = 0
 
@@ -99,6 +102,7 @@ class DriveOutcome:
     drive_id: str
     blocks: list[BlockOutcome] = field(default_factory=list)
     counts: FilterCounts = field(default_factory=FilterCounts)
+    direct_counts: DirectSlipCounts = field(default_factory=DirectSlipCounts)
     errors: list[str] = field(default_factory=list)
     elapsed_s: float = 0.0
 
@@ -182,6 +186,13 @@ def run_drive(task: DriveTask) -> DriveOutcome:
         cands, counts = find_sideslip_candidates(gs, cfg)
         out.counts.add(counts)
 
+        # 直接証拠。beta の適用範囲にも 2 段フィルタにも縛られない。
+        # 設定が無いデータセット・古い設定でも落ちないようにしておく。
+        direct: list[DirectSlipEvent] = []
+        if "direct_slip" in cfg:
+            direct, dcounts = find_direct_slip(gs, cfg)
+            out.direct_counts.add(dcounts)
+
         dump = None
         if _STATE["dump_stage1"]:
             m1, _ = stage1_mask(gs.df, cfg)
@@ -190,7 +201,8 @@ def run_drive(task: DriveTask) -> DriveOutcome:
                 dump = gs.df.loc[m1, cols].copy()
                 dump.insert(0, "drive_id", task.drive_id)
         out.blocks.append(
-            BlockOutcome(spans=spans, candidates=cands, dump=dump, n_segments=len(segs))
+            BlockOutcome(spans=spans, candidates=cands, direct=direct,
+                         dump=dump, n_segments=len(segs))
         )
 
     out.elapsed_s = time.perf_counter() - t0

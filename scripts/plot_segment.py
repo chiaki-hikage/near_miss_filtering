@@ -268,6 +268,74 @@ def panel_brake(ax, ctx: PlotContext) -> None:
     _legend(ax, ncol=3)
 
 
+def panel_sideslip(ax, ctx: PlotContext) -> None:
+    """横滑り角のモデル推定と、スリップの直接証拠を重ねる。
+
+    beta_model_deg は**線形タイヤを仮定した定常横滑り角**であって実測ではない。
+
+        beta = l_r * r / v  -  k * a_y
+
+    第 1 項は旋回半径だけで決まる幾何量で、低速の小回りでは正常に数度になる。
+    したがって beta が大きいこと自体は異常を意味しない。舵から期待される
+    ぶんを引いた beta_excess のほうを見ること (docs/sideslip_filter.md §4)。
+
+    適用下限 (sideslip.min_speed_mps) を下回る区間は灰色で塗る。そこでは
+    第 1 項が 1/v で発散するので、値は読めるが意味が無い。
+
+    直接証拠 (slip_warn / ABS / VSC / 輪速の開き) は beta とは独立に立つ。
+    beta が小さいのに証拠が立っている区間があれば、それはモデルが
+    取り逃がす種類の滑り (直進制動の車輪ロックなど)。
+    """
+    ax.axhline(0, color="gray", lw=0.5)
+    ds = ctx.cfg.get("direct_slip", {})
+    ss = ctx.cfg.get("sideslip", {})
+
+    # 適用範囲の外を塗る。beta を読んではいけない区間を明示する。
+    vmin = ss.get("min_speed_mps")
+    if vmin is not None and ctx.has("v_mps"):
+        below = ctx.col("v_mps") < float(vmin)
+        _shade(ax, _mask_spans(ctx.t, below), "gray", 0.12,
+               f"beta 適用外 (v < {vmin} m/s)")
+
+    if ctx.has("beta_model_deg"):
+        ax.plot(ctx.t, ctx.col("beta_model_deg"), lw=1.3, color="tab:blue",
+                label="beta (モデル推定) [deg]")
+    if ctx.has("beta_excess_deg"):
+        ax.plot(ctx.t, ctx.col("beta_excess_deg"), lw=1.2, color="tab:red",
+                label="beta_excess (舵で説明できない) [deg]")
+        th = (ss.get("stage2", {}).get("confidence", {})
+                .get("unexplained", {}).get("threshold"))
+        if th is not None:
+            for sign in (1, -1):
+                ax.axhline(sign * float(th), color="tab:red", ls="--", lw=0.8)
+    ax.set_ylabel("横滑り角 [deg]")
+    _legend(ax, loc="upper left", ncol=2)
+
+    # 直接証拠。beta とは軸を分ける。判定の有無ではなく「立ったか」を出す。
+    a2 = ax.twinx()
+    a2.grid(False)
+    flags = ds.get("flags") or {}
+    for key, color in (("slip_warn", "tab:pink"), ("abs_active", "tab:brown"),
+                       ("vsc_active", "tab:purple")):
+        spec = flags.get(key)
+        if spec is None or not ctx.has(spec["feature"]):
+            continue
+        x = ctx.col(spec["feature"]) > float(spec["threshold"])
+        if not x.any():
+            continue
+        a2.step(ctx.t, x.astype(float), where="post", lw=1.4, color=color,
+                label=f"{spec['label']} 作動")
+    w = ds.get("wheel_spread")
+    if w and ctx.has(w["feature"]):
+        a2.plot(ctx.t, ctx.col(w["feature"]) / float(w["min_spread_mps"]),
+                lw=1.0, color="tab:green", alpha=0.9,
+                label=f"輪速の開き / {w['min_spread_mps']} m/s")
+        a2.axhline(1.0, color="tab:green", ls=":", lw=0.8)
+    a2.set_ylim(-0.15, 2.2)
+    a2.set_ylabel("直接証拠")
+    _legend(a2, loc="upper right", ncol=2)
+
+
 def panel_pedal(ax, ctx: PlotContext) -> None:
     """運転者の操作量。アクセルを戻してから制動までの流れを見る。"""
     _decorate(ax, ctx, "panic_brake", "panic_brake_pedal")
@@ -304,7 +372,14 @@ def panel_physics(ax, ctx: PlotContext) -> None:
         thr = ctx.cfg["events"]["yaw_instability"]["threshold"]
         for sign in (1, -1):
             ax.axhline(sign * thr, color="tab:red", ls="--", lw=0.8)
-        ax.set_ylim(-max(8.0, thr * 1.6), max(8.0, thr * 1.6))
+        # 閾値の 1.6 倍を既定の範囲にするが、実データがそれを超えるなら合わせる。
+        # 固定にすると、いちばん見たい大きな残差 (アンダーステアで -30σ など) が
+        # 枠の外に出て読めなくなる。
+        import numpy as _np
+        v = ctx.col("yaw_residual_sigma")
+        peak = float(_np.nanmax(_np.abs(v))) if _np.isfinite(v).any() else 0.0
+        lim = max(8.0, thr * 1.6, peak * 1.1)
+        ax.set_ylim(-lim, lim)
     ax.set_ylabel("ヨー残差 [σ]")
     _legend(ax, loc="upper left")
     a2 = ax.twinx()
@@ -409,6 +484,7 @@ PANELS: dict[str, tuple[str, Callable]] = {
     "brake": ("制動フラグ (ABS / VSC / AEB)", panel_brake),
     "pedal": ("アクセル開度・ブレーキ圧", panel_pedal),
     "physics": ("ヨー残差・逆操舵", panel_physics),
+    "sideslip": ("横滑り角と直接証拠", panel_sideslip),
     "lead": ("車間距離・TTC・車間時間", panel_lead),
     "wheel_spread": ("4輪速のばらつき", panel_wheel_spread),
     "imu_accel": ("IMU 加速度 3軸", panel_imu_accel),

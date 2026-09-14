@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
-"""横滑り候補の 2 段抽出を、キャッシュ済みの実データに通す。
+"""横滑りの抽出を、キャッシュ済みの実データに通す。**独立した 2 枝**を同時に流す。
 
-    全データ  ->  1 次通過  ->  2 次通過  ->  最終候補
+  枝 1  beta の 2 段フィルタ (sideslip.py)
+        全データ -> 1 次通過 -> 2 次通過 -> 最終候補
+        モデル推定の beta を使う。適用下限 min_speed_mps がある。
+
+  枝 2  直接証拠 (direct_slip.py)
+        slip_warn / ABS / VSC / 輪速の開き を**種類ごとに分けて**拾う。
+        モデルを通さないので速度の下限が要らない。
+        等級は確定証拠が何系統重なったかで決まる
+        (A_確定 2 系統以上 / B_単一 1 系統 / C_候補 輪速の開きだけ)。
+
+2 枝は互いに影響しない。最後に両者の重なりを出す。
 
 各段で何が残ったかを数えて出す。取得はしない (キャッシュにあるものだけを使う)。
 取得は scripts/fetch_car_segments.py / screen_segments.py で先に行うこと。
@@ -13,9 +23,11 @@
   uv run python scripts/screen_sideslip.py --comma2k19 raw_data/Chunk_1 --out out/sideslip_chunk1
 
 出力
-  candidates.csv   最終候補。beta の大きい順
-  counts.json      各段の件数
-  stage_samples.csv.gz  1 次を通ったサンプルの明細 (--dump-stage1 のとき)
+  candidates.csv   枝 1 の最終候補。beta の大きい順
+  direct_slip.csv  枝 2 の候補。証拠ごとの有無を個別の列で持つ
+  overlap.csv      2 枝の重なり (区間の重複で突き合わせたもの)
+  counts.json      各段の件数と、証拠の組み合わせ別の内訳
+  stage1_samples.csv.gz  枝 1 の 1 次を通ったサンプルの明細 (--dump-stage1 のとき)
 """
 
 from __future__ import annotations
@@ -53,6 +65,13 @@ from near_miss.parallel import (
     build_tasks,
     map_drives,
     resolve_workers,
+)
+from near_miss.direct_slip import (
+    ALL_EVIDENCE,
+    CONTEXT,
+    DIRECT,
+    DirectSlipCounts,
+    events_to_frame,
 )
 from near_miss.sideslip import CHECKS, FilterCounts, candidates_to_frame
 
@@ -95,6 +114,55 @@ def parse_args() -> argparse.Namespace:
 
 def _percent(n: int, d: int) -> str:
     return f"{n / d:.4%}" if d else "-"
+
+
+def _overlap(beta: pd.DataFrame, direct: pd.DataFrame) -> pd.DataFrame:
+    """2 枝の候補を、同じドライブ・同じセグメントの区間の重なりで突き合わせる。
+
+    どちらの枝も t_start / t_end はブロック先頭からの相対秒なので、
+    同じドライブの同じブロックであればそのまま比べられる。
+    片方にしか出ないものも行として残す。**どちらが取り、どちらが逃したか**が
+    分かる形にしておく。
+    """
+    cols = ["drive_id", "segment", "t_start", "t_end"]
+    rows: list[dict] = []
+    b = beta[[c for c in cols if c in beta.columns]].copy() if not beta.empty else pd.DataFrame()
+    d = direct[[c for c in cols if c in direct.columns]].copy() if not direct.empty else pd.DataFrame()
+    if not b.empty:
+        b["idx_b"] = range(len(b))
+    if not d.empty:
+        d["idx_d"] = range(len(d))
+
+    matched_b: set[int] = set()
+    matched_d: set[int] = set()
+    if not b.empty and not d.empty:
+        for r in b.itertuples():
+            same = d[(d.drive_id == r.drive_id) & (d.segment == r.segment)]
+            for q in same.itertuples():
+                if r.t_start <= q.t_end and q.t_start <= r.t_end:
+                    matched_b.add(r.idx_b)
+                    matched_d.add(q.idx_d)
+                    rows.append({"drive_id": r.drive_id, "segment": r.segment,
+                                 "t_start": min(r.t_start, q.t_start),
+                                 "t_end": max(r.t_end, q.t_end),
+                                 "beta": True, "direct": True, "both": True})
+    if not b.empty:
+        for r in b.itertuples():
+            if r.idx_b not in matched_b:
+                rows.append({"drive_id": r.drive_id, "segment": r.segment,
+                             "t_start": r.t_start, "t_end": r.t_end,
+                             "beta": True, "direct": False, "both": False})
+    if not d.empty:
+        for q in d.itertuples():
+            if q.idx_d not in matched_d:
+                rows.append({"drive_id": q.drive_id, "segment": q.segment,
+                             "t_start": q.t_start, "t_end": q.t_end,
+                             "beta": False, "direct": True, "both": False})
+    if not rows:
+        return pd.DataFrame(columns=["drive_id", "segment", "t_start", "t_end",
+                                     "beta", "direct", "both"])
+    return pd.DataFrame(rows).sort_values(["both", "drive_id", "segment", "t_start"],
+                                          ascending=[False, True, True, True])
 
 
 def main() -> int:
@@ -166,7 +234,9 @@ def main() -> int:
     print(f"config_hash: {cfg_hash}\n")
 
     total = FilterCounts()
+    dtotal = DirectSlipCounts()
     cand_frames: list[pd.DataFrame] = []
+    direct_frames: list[pd.DataFrame] = []
     dumps: list[pd.DataFrame] = []
     n_seg, n_block, t0 = 0, 0, time.perf_counter()
 
@@ -184,6 +254,7 @@ def main() -> int:
         for msg in out.errors:
             print(f"  {msg}")
         total.add(out.counts)
+        dtotal.add(out.direct_counts)
         for blk in out.blocks:
             n_seg += blk.n_segments
             n_block += 1
@@ -193,6 +264,12 @@ def main() -> int:
                 f.insert(0, "drive_id", out.drive_id)
                 f.insert(0, "dataset", dataset)
                 cand_frames.append(f)
+            if blk.direct:
+                f = events_to_frame(blk.direct, cfg_hash)
+                f = _annotate_segment(f, blk.spans, video_fps)
+                f.insert(0, "drive_id", out.drive_id)
+                f.insert(0, "dataset", dataset)
+                direct_frames.append(f)
             if blk.dump is not None:
                 dumps.append(blk.dump)
         if n_block % 50 == 0 and n_block:
@@ -204,6 +281,20 @@ def main() -> int:
     if not cd.empty:
         cd = cd.reindex(cd.beta_peak_deg.abs().sort_values(ascending=False).index).reset_index(drop=True)
     cd.to_csv(args.out / "candidates.csv", index=False)
+
+    dd = pd.concat(direct_frames, ignore_index=True) if direct_frames else pd.DataFrame()
+    if not dd.empty:
+        order = {"A_確定": 0, "B_単一": 1, "C_候補": 2}
+        dd = (dd.assign(_o=dd.grade.map(order).fillna(9))
+                .sort_values(["_o", "n_direct", "v_max_mps"],
+                             ascending=[True, False, False])
+                .drop(columns="_o").reset_index(drop=True))
+    dd.to_csv(args.out / "direct_slip.csv", index=False)
+
+    # 2 枝の重なり。同じドライブ・同じセグメントで区間が重なるものを対にする。
+    ov = _overlap(cd, dd)
+    ov.to_csv(args.out / "overlap.csv", index=False)
+
     if dumps:
         with gzip.open(args.out / "stage1_samples.csv.gz", "wt", encoding="utf-8") as f:
             pd.concat(dumps, ignore_index=True).to_csv(f, index=False)
@@ -215,7 +306,14 @@ def main() -> int:
         "workers": workers,
         "elapsed_min": round((time.perf_counter() - t0) / 60, 2),
         "counts": asdict(total),
+        "direct_counts": asdict(dtotal),
+        "overlap": {
+            "beta_candidates": int(len(cd)),
+            "direct_events": int(len(dd)),
+            "both": int(ov.both.sum()) if not ov.empty else 0,
+        },
         "sideslip_config": s,
+        "direct_slip_config": cfg.get("direct_slip"),
     }
     (args.out / "counts.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
@@ -256,6 +354,58 @@ def main() -> int:
         print(cd[cols].head(20).round(2).to_string(index=False))
     else:
         print("\n最終候補はありませんでした。")
+
+    # ---- 枝 2: 直接証拠 ----------------------------------------------------
+    print("\n" + "=" * 72)
+    print("枝 2  スリップの直接証拠 (beta を通さない)")
+    print("=" * 72)
+    print(f"{'信号':<20}{'ある':>8}{'ない':>8}{'立った区間':>12}")
+    for name in (*ALL_EVIDENCE, *CONTEXT):
+        runs = dtotal.runs_by_evidence.get(name, "-")
+        print(f"{name:<20}{dtotal.present.get(name, 0):>8,}"
+              f"{dtotal.missing.get(name, 0):>8,}{runs:>12}")
+    if dd.empty:
+        if not dtotal.present:
+            print("\n  この車種には該当する信号がありません "
+                  "(comma2k19 の RAV4 には 0x226 / 0x3B7 が無い)。")
+        else:
+            print("\n  立った区間はありませんでした。")
+    else:
+        print(f"\n確認単位 {len(dd)} 件")
+        print("\n等級別 (確定証拠が何系統重なったか)")
+        for g in ("A_確定", "B_単一", "C_候補"):
+            n_g = int((dd.grade == g).sum())
+            note = {"A_確定": "確定証拠 2 系統以上",
+                    "B_単一": "確定証拠 1 系統",
+                    "C_候補": "輪速の開きのみ。目視の確認が要る"}[g]
+            print(f"  {g:<10}{n_g:>5} 件   {note}")
+        print("\n証拠の組み合わせ別")
+        for k, n_k in sorted(dtotal.by_combination.items(), key=lambda x: -x[1]):
+            print(f"  {k:<40}{n_k:>5} 件")
+        cols = [c for c in ("grade", "n_direct", "evidence", "drive_id", "segment",
+                            "t_in_segment_s", "duration_s", "slip_warn_peak",
+                            "ws_spread_peak_mps", "v_max_mps", "ax_at_peak_mps2",
+                            "ay_at_peak_mps2", "steer_at_peak_deg",
+                            "beta_model_peak_deg", "tc_disabled") if c in dd.columns]
+        print(f"\n上位 {min(20, len(dd))} 件:")
+        print(dd[cols].head(20).round(2).to_string(index=False))
+
+    # ---- 2 枝の重なり ------------------------------------------------------
+    if not ov.empty:
+        both = int(ov.both.sum())
+        only_b = int((ov.beta & ~ov.direct).sum())
+        only_d = int((~ov.beta & ov.direct).sum())
+        print("\n" + "=" * 72)
+        print("2 枝の重なり")
+        print("=" * 72)
+        print(f"  両方が取った        {both:>5} 件")
+        print(f"  beta だけが取った    {only_b:>5} 件")
+        print(f"  直接証拠だけが取った  {only_d:>5} 件")
+        if only_d:
+            print("\n  ※ 直接証拠だけの分は beta 側の適用下限 "
+                  f"(v >= {s['min_speed_mps']} m/s) や"
+                  "\n     2 段フィルタで落ちたもの。両枝を残す理由がここに出る。")
+
     print(f"\n出力: {args.out}")
     return 0
 
