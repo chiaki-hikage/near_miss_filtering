@@ -64,6 +64,14 @@ geometry:
   accel_y_noise_mps2: 0.2059
 
 
+# 加速度センサ (accel_x / accel_y) の向きは車両ごとに違う。
+# scripts/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
+# (src/near_miss/sign_calibration.py)。判定できなかった車両・表に無い車両は
+# 加速度チャネルを使わない。表を作り直すと config_hash も変わる。
+calibration:
+  accel_sign: data/calibration/accel_sign/TOYOTA_RAV4_TSS2.csv
+  on_missing: drop
+
 signals:
   # --- 縦方向 -------------------------------------------------------------
   # 0x0B4 の SPEED は表示車速。comma2k19 の RAV4 では輪速平均より 2.13% 高く出た

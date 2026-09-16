@@ -327,9 +327,9 @@ def panel_sideslip(ax, ctx: PlotContext) -> None:
                 label=f"{spec['label']} 作動")
     w = ds.get("wheel_spread")
     if w and ctx.has(w["feature"]):
-        a2.plot(ctx.t, ctx.col(w["feature"]) / float(w["min_spread_mps"]),
+        a2.plot(ctx.t, ctx.col(w["feature"]) / float(w["threshold"]),
                 lw=1.0, color="tab:green", alpha=0.9,
-                label=f"輪速の開き / {w['min_spread_mps']} m/s")
+                label=f"輪速の開き / {w['threshold']} m/s")
         a2.axhline(1.0, color="tab:green", ls=":", lw=0.8)
     a2.set_ylim(-0.15, 2.2)
     a2.set_ylabel("直接証拠")

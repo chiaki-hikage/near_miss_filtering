@@ -8,8 +8,8 @@
   枝 2  直接証拠 (direct_slip.py)
         slip_warn / ABS / VSC / 輪速の開き を**種類ごとに分けて**拾う。
         モデルを通さないので速度の下限が要らない。
-        等級は確定証拠が何系統重なったかで決まる
-        (A_確定 2 系統以上 / B_単一 1 系統 / C_候補 輪速の開きだけ)。
+        等級は**裏付けの取れた**制御作動が何系統あるかで決まる
+        (multi_evidence / high_evidence / activation_only / physics_only)。
 
 2 枝は互いに影響しない。最後に両者の重なりを出す。
 
@@ -70,6 +70,8 @@ from near_miss.direct_slip import (
     ALL_EVIDENCE,
     CONTEXT,
     DIRECT,
+    GRADE_NOTE,
+    GRADE_ORDER,
     DirectSlipCounts,
     events_to_frame,
 )
@@ -109,6 +111,10 @@ def parse_args() -> argparse.Namespace:
                    help="適用範囲の下限を設定から変えて試す (既定は configs/detection.yaml)")
     p.add_argument("--dump-stage1", action="store_true",
                    help="1 次を通ったサンプルの明細も書き出す")
+    p.add_argument("--branch", choices=("both", "beta", "direct"), default="both",
+                   help="流す枝。both = 2 枝とも (既定) / beta = 枝 1 だけ / "
+                        "direct = 枝 2 だけ。direct は geometry が未確定の車種でも流せる "
+                        "(枝 2 はモデルを使わないため)")
     return p.parse_args()
 
 
@@ -198,13 +204,22 @@ def main() -> int:
             raise SystemExit(f"車種設定がありません: dongle={refs[0].dongle_id}")
         dataset, label, video_fps = DATASET_COMMA2K19, str(args.comma2k19), 20.0
 
-    if vehicle.sideslip_ay_coeff() is None or vehicle.center_to_rear_m() is None:
-        raise SystemExit(f"{vehicle.name} は beta を出せません (geometry が未確定)")
-    if vehicle.geometry_value("yaw_rate_noise_dps") is None:
-        raise SystemExit(
-            f"{vehicle.name} に yaw_rate_noise_dps がありません。"
-            "先に scripts/calibrate_beta_noise.py を実行してください"
-        )
+    # 枝 1 は車両諸元に依る。諸元が無いまま流すと beta の列ができず、
+    # 「0 件」が「諸元が無い」なのか「候補が無い」なのか区別できなくなる。
+    # 枝 2 はモデルを使わないので、諸元が無くても流せる。
+    if args.branch in ("both", "beta"):
+        if vehicle.sideslip_ay_coeff() is None or vehicle.center_to_rear_m() is None:
+            raise SystemExit(
+                f"{vehicle.name} は beta を出せません (geometry が未確定)。"
+                f"\n      直接証拠の枝だけを流すなら --branch direct を付けてください。"
+            )
+        if vehicle.geometry_value("yaw_rate_noise_dps") is None:
+            raise SystemExit(
+                f"{vehicle.name} に yaw_rate_noise_dps がありません。"
+                "先に scripts/calibrate_beta_noise.py を実行してください"
+            )
+    if args.branch == "beta":
+        cfg.pop("direct_slip", None)
 
     if args.limit is not None and args.select == "cache":
         refs = refs[: args.limit]
@@ -226,9 +241,14 @@ def main() -> int:
     print(f"データ   : {dataset} / {label}")
     print(f"車種設定 : {vehicle.name}")
     print(f"セグメント: {len(refs)}")
-    print(f"設定     : 適用 v>={s['min_speed_mps']} m/s / "
-          f"1次 |beta|>={s['stage1']['min_beta_deg']} deg かつ "
-          f">={s['stage1']['min_beta_sigma']} sigma")
+    if args.branch == "direct":
+        print("枝       : 枝 2 (直接証拠) のみ。"
+              "枝 1 (beta) は geometry 未確定のため流していません")
+    else:
+        print(f"設定     : 適用 v>={s['min_speed_mps']} m/s / "
+              f"1次 |beta|>={s['stage1']['min_beta_deg']} deg かつ "
+              f">={s['stage1']['min_beta_sigma']} sigma"
+              + ("  (枝 1 のみ)" if args.branch == "beta" else ""))
     print(f"並列     : ドライブ単位 worker {workers}"
           + ("  (逐次)" if workers == 1 else ""))
     print(f"config_hash: {cfg_hash}\n")
@@ -284,10 +304,10 @@ def main() -> int:
 
     dd = pd.concat(direct_frames, ignore_index=True) if direct_frames else pd.DataFrame()
     if not dd.empty:
-        order = {"A_確定": 0, "B_単一": 1, "C_候補": 2}
+        order = {g: i for i, g in enumerate(GRADE_ORDER)}
         dd = (dd.assign(_o=dd.grade.map(order).fillna(9))
-                .sort_values(["_o", "n_direct", "v_max_mps"],
-                             ascending=[True, False, False])
+                .sort_values(["_o", "n_corroborated", "n_direct", "v_max_mps"],
+                             ascending=[True, False, False, False])
                 .drop(columns="_o").reset_index(drop=True))
     dd.to_csv(args.out / "direct_slip.csv", index=False)
 
@@ -312,7 +332,8 @@ def main() -> int:
             "direct_events": int(len(dd)),
             "both": int(ov.both.sum()) if not ov.empty else 0,
         },
-        "sideslip_config": s,
+        "branch": args.branch,
+        "sideslip_config": s if args.branch != "direct" else None,
         "direct_slip_config": cfg.get("direct_slip"),
     }
     (args.out / "counts.json").write_text(
@@ -324,6 +345,12 @@ def main() -> int:
     print(f"処理 {n_seg} セグメント / {total.n_hours:.1f} 時間 / "
           f"{(time.perf_counter() - t0) / 60:.1f} 分")
     print("=" * 72)
+    if args.branch == "direct":
+        # 枝 1 の表は出さない。0 が並ぶと「候補が無かった」と読めてしまうが、
+        # 実際には流していない。
+        print("枝 1 (beta) は流していません (--branch direct)")
+        _report_direct(dtotal, dd, ov, s, args, skip_overlap=True)
+        return 0
     print(f"{'段階':<26}{'サンプル':>12}{'全体比':>11}{'区間':>8}")
     print(f"{'全データ':<24}{n:>12,}{'100.0000%':>11}{'':>8}")
     print(f"{'  beta が計算できた':<22}{total.n_beta_valid:>12,}"
@@ -355,6 +382,13 @@ def main() -> int:
     else:
         print("\n最終候補はありませんでした。")
 
+    _report_direct(dtotal, dd, ov, s, args)
+    return 0
+
+
+def _report_direct(dtotal: DirectSlipCounts, dd: pd.DataFrame, ov: pd.DataFrame,
+                   s: dict, args: argparse.Namespace, skip_overlap: bool = False) -> None:
+    """枝 2 の報告と、2 枝の重なり。枝 1 を流していないときは重なりを出さない。"""
     # ---- 枝 2: 直接証拠 ----------------------------------------------------
     print("\n" + "=" * 72)
     print("枝 2  スリップの直接証拠 (beta を通さない)")
@@ -372,17 +406,18 @@ def main() -> int:
             print("\n  立った区間はありませんでした。")
     else:
         print(f"\n確認単位 {len(dd)} 件")
-        print("\n等級別 (確定証拠が何系統重なったか)")
-        for g in ("A_確定", "B_単一", "C_候補"):
+        print("\n等級別 (裏付けの取れた制御作動が何系統あるか)")
+        for g in GRADE_ORDER:
             n_g = int((dd.grade == g).sum())
-            note = {"A_確定": "確定証拠 2 系統以上",
-                    "B_単一": "確定証拠 1 系統",
-                    "C_候補": "輪速の開きのみ。目視の確認が要る"}[g]
-            print(f"  {g:<10}{n_g:>5} 件   {note}")
+            print(f"  {g:<18}{n_g:>5} 件   {GRADE_NOTE[g]}")
+        print("\n作動と裏付けの対応")
+        for k, n_k in dd.corroboration.replace("", "(裏付けなし)").value_counts().items():
+            print(f"  {k:<44}{n_k:>5} 件")
         print("\n証拠の組み合わせ別")
         for k, n_k in sorted(dtotal.by_combination.items(), key=lambda x: -x[1]):
             print(f"  {k:<40}{n_k:>5} 件")
-        cols = [c for c in ("grade", "n_direct", "evidence", "drive_id", "segment",
+        cols = [c for c in ("grade", "n_corroborated", "corroboration", "evidence",
+                            "drive_id", "segment",
                             "t_in_segment_s", "duration_s", "slip_warn_peak",
                             "ws_spread_peak_mps", "v_max_mps", "ax_at_peak_mps2",
                             "ay_at_peak_mps2", "steer_at_peak_deg",
@@ -391,7 +426,7 @@ def main() -> int:
         print(dd[cols].head(20).round(2).to_string(index=False))
 
     # ---- 2 枝の重なり ------------------------------------------------------
-    if not ov.empty:
+    if not skip_overlap and not ov.empty:
         both = int(ov.both.sum())
         only_b = int((ov.beta & ~ov.direct).sum())
         only_d = int((~ov.beta & ov.direct).sum())
@@ -407,7 +442,6 @@ def main() -> int:
                   "\n     2 段フィルタで落ちたもの。両枝を残す理由がここに出る。")
 
     print(f"\n出力: {args.out}")
-    return 0
 
 
 if __name__ == "__main__":

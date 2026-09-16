@@ -21,16 +21,44 @@ beta を使う限り取れない滑りがある。TSS2 の 33.3 時間で実測�
 ----------
 種類ごとに分けて保持する。まとめて 1 本のフラグにしない。
 
-  確定証拠 (DIRECT)   車両自身の判断。閾値を決める余地がない
+  制御作動 (DIRECT)   車両自身の判断。閾値を決める余地がない
       slip_warn     滑り警告灯。値 4 が実作動。3 はランプ試験、7 は継続点灯
       abs_active    ABS 作動
       vsc_active    VSC 作動
-  裏付け (SUPPORT)    人が閾値を決めるので、**単独では確定にしない**
+  物理挙動 (SUPPORT)  人が閾値を決めるので、**単独では確定にしない**
       wheel_spread  4 輪速の最大 - 最小
+      wheel_decel   輪 1 本の瞬間減速度 (4 輪のうち最も深いもの)
+      lateral       横加速度 (車速 x ヨーレート)
+      yaw_residual  舵で説明できないヨー (諸元が要る。RAV4 TSS2 のみ)
   参考 (CONTEXT)      証拠に数えない。候補行に添えるだけ
       tc_disabled   TC 解除。「作動した」ではない
 
-等級は確定証拠が何系統重なったかで決まる (A_確定 / B_単一 / C_候補)。
+等級
+----
+**制御が作動しただけでは等級を上げない。作動に対応する物理挙動が同じ窓に
+出ているかまで見る。** 以前は制御作動が何系統重なったかだけで決めていたが、
+4 車種 187 件を読み直すと、最上位の 69 件のうち 54 件は ax 中央 -1.6 m/s^2、
+輪速差 0.90 m/s (対照 p95 = 0.87) の軽い介入だった。RAV4 では slip_warn と
+ABS が 90% 同時に立つので、独立性の低い 2 系統を数えて上位に積んでいた。
+
+  multi_evidence     **異なる物理メカニズム**の裏付けが 2 系統以上
+                     ABS と slip_warn を同じ wheel_decel で裏付けても 1 系統。
+                     輪速から出る量 (輪速差・輪単体の減速) と、ヨーと舵から出る量
+                     (横加速度・舵で説明できないヨー) を別の系統として数える。
+  high_evidence      裏付けは取れたが、系統は 1 つ
+  activation_only    制御は作動したが、対応する物理挙動が確認できない
+  physics_only       制御作動なし。物理挙動だけ
+
+どの作動に何が対応するかは configs/detection.yaml の corroboration で決める。
+
+  ABS       -> 輪単体の深い減速 (主) / 輪速の開き
+               4 輪が同時にロックと解放を繰り返すので輪と輪の差には出にくい。
+               実測でも ABS 事象 66 件のうち 35 件が輪速差 1.0 m/s 未満、
+               そのうち 18 件は輪単体では -8 m/s^2 以下に落ちていた。
+  slip_warn -> 輪速の開き (空転) / 輪単体の深い減速 (ロック) / 横加速度 /
+               舵で説明できないヨー
+  VSC       -> 横加速度 / 舵で説明できないヨー
+
 候補行には各証拠の有無を個別の列で残すので、重なり方を後から数えられる。
 """
 
@@ -45,18 +73,33 @@ import pandas as pd
 from .detectors import _merge_runs, _runs
 from .signals import GriddedSignals, window_samples
 
-# 確定証拠。設定 direct_slip.flags のキーと対応する。
+# 制御作動。設定 direct_slip.flags のキーと対応する。
 DIRECT = ("slip_warn", "abs_active", "vsc_active")
-# 裏付け。単独では確定にしない。
-SUPPORT = ("wheel_spread",)
+# 物理挙動。単独では確定にしない。
+SUPPORT = ("wheel_spread", "wheel_decel", "lateral", "yaw_residual")
 # 参考。証拠には数えない。
 CONTEXT = ("tc_disabled",)
 
 ALL_EVIDENCE = DIRECT + SUPPORT
 
-GRADE_HIGH = "A_確定"
-GRADE_SINGLE = "B_単一"
-GRADE_CANDIDATE = "C_候補"
+# 確認単位を**作る**証拠。裏付けのうち wheel_decel / lateral / yaw_residual は入れない。
+# 閾値が対照窓の p98 / p99 にあるので、単独で拾わせると通常走行が大量に並ぶ
+# (300 セグメントの試しで wheel_decel 単独の事象が数十件出た)。
+# これらは「作動があったときに、それが本物かを確かめる」ためだけに使う。
+TRIGGER = DIRECT + ("wheel_spread",)
+
+GRADE_MULTI = "multi_evidence"
+GRADE_HIGH = "high_evidence"
+GRADE_ACTIVATION = "activation_only"
+GRADE_PHYSICS = "physics_only"
+
+GRADE_ORDER = (GRADE_MULTI, GRADE_HIGH, GRADE_ACTIVATION, GRADE_PHYSICS)
+GRADE_NOTE = {
+    GRADE_MULTI: "異なる物理メカニズムの裏付けが 2 系統以上",
+    GRADE_HIGH: "裏付けは取れたが、系統は 1 つ",
+    GRADE_ACTIVATION: "制御は作動したが対応する物理挙動が確認できない",
+    GRADE_PHYSICS: "制御作動なし。物理挙動だけ。目視の確認が要る",
+}
 
 
 @dataclass
@@ -67,8 +110,12 @@ class DirectSlipEvent:
     t_end: float
     duration_s: float
     grade: str
-    n_direct: int                 # 確定証拠が何系統立ったか
+    n_direct: int                 # 制御作動が何系統立ったか
+    n_corroborated: int           # うち、対応する物理挙動まで揃ったのは何系統か
+    n_mechanisms: int             # 裏付けが**異なる物理メカニズム**で何系統あるか
     evidence: str                 # 立った証拠を "|" でつないだもの
+    corroboration: str            # "abs_active:wheel_decel" のように作動と裏付けの対応
+    mechanisms: str               # 裏付けの系統を "|" でつないだもの
     # --- 証拠ごとの有無と強さ。まとめない ---
     # bool 側が判定の結果。*_peak は確認単位 (余白込み) の中の最大値で、
     # **条件を通ったかどうかとは別物**。たとえば輪速の開きが一瞬 3 m/s に
@@ -80,6 +127,10 @@ class DirectSlipEvent:
     vsc_active: bool
     wheel_spread: bool
     ws_spread_peak_mps: float
+    wheel_decel: bool
+    wheel_decel_peak_mps2: float  # 4 輪のうち最も深い瞬間減速度
+    lateral: bool
+    yaw_residual: bool
     tc_disabled: bool             # 参考。等級には効かない
     # --- 状況 ---
     v_at_peak_mps: float
@@ -164,22 +215,36 @@ def evidence_masks(
                 m &= np.where(np.isfinite(x), x <= float(hi), False)
             masks[name] = m
 
-    # 輪速の開き。持続時間の条件をここで課す (フラグと違い雑音の尖りが出る)。
-    w = ds["wheel_spread"]
-    feat = w["feature"]
-    present["wheel_spread"] = feat in df.columns and bool(np.isfinite(_col(df, feat)).any())
-    spread = _col(df, feat)
+    # 物理挙動。フラグと違って閾値を人が決めるので、持続時間の条件も課す。
     v = _col(df, "v_mps")
-    raw = (
-        np.where(np.isfinite(spread), spread >= float(w["min_spread_mps"]), False)
-        & np.where(np.isfinite(v), v >= float(w["min_speed_mps"]), False)
-    )
-    min_n = max(1, window_samples(float(w["min_duration_s"]), rate_hz))
-    keep = np.zeros(n, dtype=bool)
-    for a, b in _runs(raw):
-        if b - a + 1 >= min_n:
-            keep[a : b + 1] = True
-    masks["wheel_spread"] = keep
+    for name, default_op in (("wheel_spread", "ge"), ("wheel_decel", "le"),
+                             ("lateral", "abs_ge"), ("yaw_residual", "abs_ge")):
+        spec = ds.get(name)
+        if not spec:
+            masks[name] = np.zeros(n, dtype=bool)
+            present[name] = False
+            continue
+        feat = spec["feature"]
+        present[name] = feat in df.columns and bool(np.isfinite(_col(df, feat)).any())
+        x = _col(df, feat)
+        thr = float(spec["threshold"])
+        op = spec.get("op", default_op)
+        if op == "le":
+            hit = x <= thr
+        elif op == "abs_ge":
+            hit = np.abs(x) >= thr
+        else:
+            hit = x >= thr
+        raw = np.where(np.isfinite(x), hit, False)
+        vmin = spec.get("min_speed_mps")
+        if vmin is not None:
+            raw &= np.where(np.isfinite(v), v >= float(vmin), False)
+        min_n = max(1, window_samples(float(spec.get("min_duration_s", 0.0)), rate_hz))
+        keep = np.zeros(n, dtype=bool)
+        for a, b in _runs(raw):
+            if b - a + 1 >= min_n:
+                keep[a : b + 1] = True
+        masks[name] = keep
     return masks, present
 
 
@@ -210,10 +275,10 @@ def find_direct_slip(
         if name in ALL_EVIDENCE:
             counts.runs_by_evidence[name] = len(runs)
 
-    # 確定証拠と裏付けのどちらかが立っていれば確認単位にする。
+    # 制御作動か輪速の開きが立っていれば確認単位にする (TRIGGER)。
     # 参考 (tc_disabled) だけでは作らない。ランプチェックを拾ってしまう。
     any_ev = np.zeros(len(df), dtype=bool)
-    for name in ALL_EVIDENCE:
+    for name in TRIGGER:
         any_ev |= masks[name]
     if not any_ev.any():
         return [], counts
@@ -225,22 +290,49 @@ def find_direct_slip(
     windows = _merge_runs(_runs(padded), t, float(ds["final_merge_gap_s"]))
 
     v = _col(df, "v_mps")
-    min_high = int(ds["grade"]["min_direct_for_high"])
+    # どの作動に何が対応するか。設定で変えられるようにしておく。
+    corr_cfg = ds.get("corroboration") or {}
+    # 裏付けの信号 -> 系統。同じ物理量から出た裏付けを別々に数えないため。
+    mech_of: dict[str, str] = {}
+    for mech, members in (ds.get("mechanisms") or {}).items():
+        for m in members:
+            mech_of[m] = mech
+    min_multi = int(ds["grade"]["min_mechanisms_for_multi"])
     out: list[DirectSlipEvent] = []
     for a, b in windows:
         sl = slice(a, b + 1)
         hit = {name: bool(masks[name][sl].any()) for name in (*ALL_EVIDENCE, *CONTEXT)}
         n_direct = sum(hit[name] for name in DIRECT)
-        if n_direct >= min_high:
+
+        # 作動ごとに、対応する物理挙動が同じ窓に出ているかを見る。
+        pairs: list[str] = []
+        mechs: list[str] = []
+        for name in DIRECT:
+            if not hit[name]:
+                continue
+            backing = [s for s in (corr_cfg.get(name) or []) if hit.get(s)]
+            if backing:
+                pairs.append(f"{name}:{'+'.join(backing)}")
+                for s in backing:
+                    m = mech_of.get(s)
+                    if m and m not in mechs:
+                        mechs.append(m)
+        n_corr = len(pairs)
+        # **系統の数で決める。** 作動の数ではない。ABS と slip_warn が同じ
+        # wheel_decel だけで裏付けられていても、分かった事実は 1 つなので 1 系統。
+        n_mech = len(mechs)
+        if n_mech >= min_multi:
+            grade = GRADE_MULTI
+        elif n_corr >= 1:
             grade = GRADE_HIGH
-        elif n_direct == 1:
-            grade = GRADE_SINGLE
+        elif n_direct >= 1:
+            grade = GRADE_ACTIVATION
         else:
-            grade = GRADE_CANDIDATE
+            grade = GRADE_PHYSICS
 
         # 山の位置は証拠が立っているサンプルの中から選ぶ。余白の側は見ない。
         core = np.zeros(len(df), dtype=bool)
-        for name in ALL_EVIDENCE:
+        for name in TRIGGER:
             core[sl] |= masks[name][sl]
         idx = np.flatnonzero(core)
         # 速度が読めるところを優先し、読めなければ区間の先頭を代表にする。
@@ -258,7 +350,11 @@ def find_direct_slip(
                 duration_s=round(float(t[b] - t[a]), 2),
                 grade=grade,
                 n_direct=n_direct,
+                n_corroborated=n_corr,
+                n_mechanisms=n_mech,
                 evidence=ev,
+                corroboration="|".join(pairs),
+                mechanisms="|".join(mechs),
                 slip_warn=hit["slip_warn"],
                 slip_warn_peak=round(float(np.nanmax(_col(df, "slip_warn")[sl]))
                                      if np.isfinite(_col(df, "slip_warn")[sl]).any()
@@ -270,6 +366,13 @@ def find_direct_slip(
                     float(np.nanmax(_col(df, ds["wheel_spread"]["feature"])[sl]))
                     if np.isfinite(_col(df, ds["wheel_spread"]["feature"])[sl]).any()
                     else float("nan"), 3),
+                wheel_decel=hit["wheel_decel"],
+                yaw_residual=hit["yaw_residual"],
+                wheel_decel_peak_mps2=round(
+                    float(np.nanmin(_col(df, "wheel_decel_mps2")[sl]))
+                    if np.isfinite(_col(df, "wheel_decel_mps2")[sl]).any()
+                    else float("nan"), 2),
+                lateral=hit["lateral"],
                 tc_disabled=hit["tc_disabled"],
                 v_at_peak_mps=round(float(v[pk]), 2),
                 v_max_mps=round(float(np.nanmax(v[sl])) if np.isfinite(v[sl]).any()
@@ -297,9 +400,9 @@ def events_to_frame(
     df = pd.DataFrame([e.as_dict() for e in events])
     if config_hash:
         df["config_hash"] = config_hash
-    # 等級の強い順、次に確定証拠の数、次に速度。
-    order = {GRADE_HIGH: 0, GRADE_SINGLE: 1, GRADE_CANDIDATE: 2}
+    # 等級の強い順、次に裏付けの取れた作動の数、次に速度。
+    order = {g: i for i, g in enumerate(GRADE_ORDER)}
     df["_o"] = df["grade"].map(order).fillna(9)
-    return (df.sort_values(["_o", "n_direct", "v_max_mps"],
-                           ascending=[True, False, False])
+    return (df.sort_values(["_o", "n_mechanisms", "n_corroborated", "v_max_mps"],
+                           ascending=[True, False, False, False])
               .drop(columns="_o").reset_index(drop=True))

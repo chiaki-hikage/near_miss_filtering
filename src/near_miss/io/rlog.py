@@ -168,6 +168,9 @@ _CAR_PARAM_FIELDS = (
     "radarUnavailable",
     "openpilotLongitudinalControl",
     "flags",
+    # 下 6 桁はデータセット側で伏せてある。先頭 3 桁 (製造者・仕向け) と
+    # 10 桁目 (年式) で、同じ車種キーの中の個体差を分けて見るのに使う。
+    "carVin",
 )
 
 

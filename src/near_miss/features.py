@@ -1105,6 +1105,24 @@ def compute_features(
         ws = df[list(WHEEL_SPEED_COLUMNS)].to_numpy()
         df["ws_spread_mps"] = np.nanmax(ws, axis=1) - np.nanmin(ws, axis=1)
 
+        # 輪 1 本の瞬間減速度 (4 輪のうち最も深いもの)。
+        # ABS は 4 輪がほぼ同時にロックと解放を繰り返すので、輪と輪の差
+        # (ws_spread_mps) にはほとんど出ない。実測でも A 等級の ABS 事象 66 件の
+        # うち 35 件が輪速差 1.0 m/s 未満だった。輪単体がどれだけ深く落ちたかは
+        # 残るので、こちらを裏付けに使う。
+        # RAV4 TSS2 の対照窓 592 件 (走行中の無作為な 5.2 秒) では
+        #   中央 -1.79 / p90 -0.76 / <= -8 m/s^2 は 2%
+        #   制動中 (ax <= -1.0) に限っても中央 -2.80
+        # なので -8 m/s^2 は雑音や通常の制動のはるか下にある。
+        wheel_dec = np.full(len(df), np.nan)
+        if len(df) > 1:
+            dec = np.stack([derivative(df[c].to_numpy(), dt) for c in WHEEL_SPEED_COLUMNS],
+                           axis=1)
+            ok = np.isfinite(dec).any(axis=1)
+            if ok.any():
+                wheel_dec[ok] = np.nanmin(dec[ok], axis=1)
+        df["wheel_decel_mps2"] = wheel_dec
+
         # 生のばらつきは 1 サンプルごとの高周波ノイズが支配的で、
         # 符号反転率が 62〜67% (白色雑音なら 50%) ある。平滑化しないまま閾値を置くと
         # ノイズの尖りを拾う。実測では 0.3 秒平滑化で超過の最大が

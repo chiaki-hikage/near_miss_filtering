@@ -376,3 +376,44 @@ def test_sideslip_model_column_appears_only_with_geometry(monkeypatch):
     bare = VehicleConfig.from_dict({"name": "unknown", "geometry": {}})
     assert bare.sideslip_ay_coeff() is None
     assert bare.center_to_rear_m() is None
+
+
+def _fake_cache(tmp_path):
+    import json
+    from pathlib import Path
+
+    db = {
+        "TOYOTA_RAV4_TSS2": ["aaaaaaaaaaaaaaaa/00000001--1111111111/0/s",
+                             "aaaaaaaaaaaaaaaa/00000001--1111111111/1/s"],
+        "TOYOTA_COROLLA_TSS2": ["bbbbbbbbbbbbbbbb/00000002--2222222222/5/s"],
+    }
+    (tmp_path / "database.json").write_text(json.dumps(db))
+    for names in db.values():
+        for n in names:
+            d, r, i, _ = n.split("/")
+            p = Path(tmp_path) / "segments" / d / r / i / "rlog.zst"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(b"")
+    return tmp_path
+
+
+def test_find_segments_filters_by_platform(tmp_path):
+    """キャッシュは車種を問わず 1 か所に溜まる。platform で絞らないと他車種が混ざる。"""
+    from near_miss.io import comma_car_segments as ccs
+
+    cache = _fake_cache(tmp_path)
+    rav4 = ccs.find_segments(cache, "TOYOTA_RAV4_TSS2")
+    corolla = ccs.find_segments(cache, "TOYOTA_COROLLA_TSS2")
+    assert [r.index for r in rav4] == [0, 1]
+    assert all(r.dongle_id == "aaaaaaaaaaaaaaaa" for r in rav4)
+    assert [r.dongle_id for r in corolla] == ["bbbbbbbbbbbbbbbb"]
+    assert len(ccs.find_segments(cache)) == 3        # 指定なしは従来どおり全部
+
+
+def test_find_segments_rejects_unknown_platform(tmp_path):
+    import pytest
+    from near_miss.io import comma_car_segments as ccs
+
+    cache = _fake_cache(tmp_path)
+    with pytest.raises(KeyError):
+        ccs.find_segments(cache, "NO_SUCH_PLATFORM")

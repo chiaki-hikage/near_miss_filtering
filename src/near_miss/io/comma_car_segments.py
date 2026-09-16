@@ -240,10 +240,27 @@ def segment_ref(name: str, platform: str = "", cache_dir: str | Path = DEFAULT_C
 def find_segments(
     cache_dir: str | Path = DEFAULT_CACHE, platform: str = ""
 ) -> list[SegmentRef]:
-    """既にローカルにある rlog.zst をセグメントとして列挙する。"""
+    """既にローカルにある rlog.zst をセグメントとして列挙する。
+
+    **platform を渡したら、その車種のセグメントだけを返す。** キャッシュは
+    車種を問わず 1 つのディレクトリに溜まるので、database.json の一覧と
+    突き合わせないと他の車種が混ざる。以前は platform を SegmentRef に
+    書き込むだけで絞り込んでおらず、RAV4 TSS2 の設定で Corolla の rlog を
+    読むことができてしまった (キャッシュが RAV4 だけだった間は表に出なかった)。
+
+    platform が空なら従来どおりキャッシュ全体を返す。
+    """
     root = Path(cache_dir) / "segments"
+    wanted: set[Path] | None = None
+    if platform:
+        db = load_database(cache_dir)
+        if platform not in db:
+            raise KeyError(f"database.json に車種キーがありません: {platform}")
+        wanted = {SegmentName.parse(n).rel_path for n in db[platform]}
     refs: list[SegmentRef] = []
     for p in sorted(root.rglob("rlog.zst")):
+        if wanted is not None and p.relative_to(root) not in wanted:
+            continue
         try:
             index = int(p.parent.name)
         except ValueError:
@@ -268,11 +285,16 @@ def load_segment(
     vehicle: VehicleConfig | None = None,
     with_raw_can: bool = True,
     with_radar: bool = True,
+    apply_calibration: bool = True,
 ) -> SegmentData:
     """rlog を読んで正規化済みの SegmentData にする。
 
     with_raw_can は comma2k19 側と引数を揃えるためにある。commaCarSegments には
     復号済みの信号が無いので、False にすると信号が 1 本も出ない。
+
+    apply_calibration: 車種設定に calibration.accel_sign があれば、車両ごとの
+    加速度センサの符号を掛ける (sign_calibration.py)。符号表を**作る**ときは
+    False にして素の値を読むこと。補正済みの値から符号を決めると循環する。
     """
     seg = SegmentData(
         ref=ref, vehicle=vehicle.name if vehicle else "unknown", channels={}, notes=[]
@@ -303,6 +325,11 @@ def load_segment(
     if tx is not None:
         seg.channels["op_tx"] = tx
     seg.channels.update(data.panda_channels)
+
+    if apply_calibration:
+        from ..sign_calibration import apply_accel_signs
+
+        apply_accel_signs(seg, vehicle, REPO_ROOT)
 
     if with_radar and vehicle.radar is not None:
         radar, radar_notes = radar_from_can(data.can, vehicle.radar)

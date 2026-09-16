@@ -178,7 +178,18 @@ class VehicleConfig:
 
     @classmethod
     def load(cls, path: str | Path) -> "VehicleConfig":
-        return cls.from_dict(load_yaml(path))
+        d = load_yaml(path)
+        # 符号表は設定の外にある生成物なので、中身のハッシュを raw に書き込んで
+        # config_hash に効かせる。表を作り直したら出力の config_hash も変わる。
+        cal = d.get("calibration") or {}
+        table = cal.get("accel_sign")
+        if table:
+            p = Path(table) if Path(table).is_absolute() else REPO_ROOT / table
+            if p.is_file():
+                import hashlib
+                cal["accel_sign_sha256"] = hashlib.sha256(p.read_bytes()).hexdigest()
+                d["calibration"] = cal
+        return cls.from_dict(d)
 
     def geometry_value(self, key: str, default: float | None = None) -> float | None:
         """車両諸元を取り出す。未検証で null のものは default を返す。"""
