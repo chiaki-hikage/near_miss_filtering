@@ -55,6 +55,17 @@ scripts/
   validate_signals.py      車種設定の符号・前提を実データで検証する
   screen_sideslip.py       横滑りの抽出。beta の 2 段フィルタと直接証拠の 2 枝
   scan_slip_flags.py       スリップの直接証拠を生 CAN のフラグだけで数える
+  rank_slip.py             スリップ事象を種別ごとに並べる (ロック / 空転 / 横方向)
+  review_direct_slip.py    拾った事象を読み直し、制御作動と車両挙動の整合を測る
+  eval_lateral_indicators.py  横方向候補にヨー残差と beta を当て、指標として評価する
+  check_ay_divergence.py   CAN の横 G が車速 x ヨーと乖離する急制動と、その影響を数える
+  validate_slip_flags.py   借用したビット定義が別車種でも同じ意味かを確かめる
+  report_slip_flag_validation.py  上の結果を車種ごとに並べて判定する
+  calibrate_accel_sign.py  加速度センサの向きを車両ごとに判定して符号表を作る
+  raw_can_filter.py        生 CAN だけの L1 足切り。通過率を狙って閾値を決める
+  l1_trigger_search.py     L1 の枝ごとの通過率配分と、窓方式 / event 方式の比較
+  l1_round_thresholds.py   L1 の閾値を丸い値の総当たりで選び、leave-one-out で確かめる
+  l1_apply_ccs.py          固定した L1 閾値を commaCarSegments に当てる
   calibrate_beta_noise.py  横滑り角に載るセンサ雑音を直進区間から実測する
   validate_sideslip_filter.py  横滑りフィルタの再現率を KIT MSDM で測る
   check_env.py             実行環境が整っているかを確かめる
@@ -67,6 +78,7 @@ docs/
   near_miss_filters.md   各ヒヤリハット候補の検出条件 (暫定)
   near_miss_filters_summary.md  イベント定義の一覧 (読むための要約)
   sideslip_filter.md     横滑り候補の 2 段抽出 — 設計、閾値の根拠、実データでの結果
+  l1_filter.md           L1 軽量フィルタ — 生 CAN だけで走行時間を絞る (Spark 想定)
   kit_msdm.md            横滑り物理の物差し (β の実測がある閉鎖路データ)
   datasets.md            データセットの比較表
   signals_rav4.md        信号ごとの検証結果、単軌道モデルの諸元、使わない信号の理由

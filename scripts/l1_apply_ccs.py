@@ -52,6 +52,7 @@ from near_miss.io import comma_car_segments as ccs
 CONFIGS = {
     "標準": {"ax": -2.0, "ay": 2.0, "v_min": 5.0},
     "高圧縮": {"ax": -2.5, "ay": 2.0, "v_min": 5.0},
+    "1段階厳": {"ax": -3.0, "ay": 2.5, "v_min": 5.0},
 }
 
 # 無条件通過にする制御・安全系フラグ
@@ -160,6 +161,7 @@ def run_segment(ref) -> dict | None:
         out[f"n_kin_{name}"] = int(kin.sum())
         out[f"n_total_{name}"] = int(tot.sum())
         out[f"n_steady_pass_{name}"] = int((tot & steady).sum())
+        out[f"seg_pass_{name}"] = bool(tot.any())          # この 60 秒 segment を残すか
         masks[name] = (kin, tot)
 
     # direct_slip の事象の保持
@@ -231,7 +233,9 @@ def main() -> int:
             col = f"flag_{f}"
             if col in g:
                 base[f"rate_{f}"] = g[col].sum() / nw
+        base["n_segments"] = int(len(g))
         for name in CONFIGS:
+            base[f"seg_rate_{name}"] = g[f"seg_pass_{name}"].mean()
             base[f"kin_{name}"] = g[f"n_kin_{name}"].sum() / nw
             base[f"total_{name}"] = g[f"n_total_{name}"].sum() / nw
             base[f"delta_{name}"] = base[f"total_{name}"] - base[f"kin_{name}"]
@@ -241,8 +245,9 @@ def main() -> int:
     s.to_csv(args.out / "summary.csv", index=False)
 
     print("\n■ 車種別 通過率 (窓 2 秒)")
-    show = ["platform", "hours", "kin_標準", "total_標準", "delta_標準",
-            "kin_高圧縮", "total_高圧縮", "delta_高圧縮", "flag_rate", "steady_rate"]
+    show = (["platform", "hours"]
+            + [f"total_{n}" for n in CONFIGS] + [f"seg_rate_{n}" for n in CONFIGS]
+            + ["flag_rate", "steady_rate"])
     t = s[show].copy()
     for c in show[2:]:
         t[c] = (t[c] * 100).round(2)
