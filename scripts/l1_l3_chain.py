@@ -268,6 +268,18 @@ def main() -> int:
         print(line)
     pd.DataFrame(rows).to_csv(args.out / "stages.csv", index=False)
 
+    # 最終候補の種別構成。1 候補に複数種別が付くので合計は候補数と一致しない。
+    fin = ca.event_types.fillna("").str.get_dummies("|")
+    bt = pd.DataFrame({
+        "before_L1": fin[ca.final_noL1].sum(),
+        "final": fin[ca.final].sum()}).sort_values("final", ascending=False)
+    bt["retain_pct"] = (100 * bt.final / bt.before_L1.replace(0, np.nan)).round(1)
+    bt["share_pct"] = (100 * bt.final / max(int(ca.final.sum()), 1)).round(1)
+    bt.index.name = "event_type"
+    bt.to_csv(args.out / "by_type_final.csv")
+    print(f"\n■ 最終 {int(ca.final.sum())} 候補の種別構成 (1 候補に複数種別)")
+    print(bt[bt.final > 0].to_string())
+
     if risky is not None:
         is_risky = ca.risky.map(lambda v: bool(v) if v is not None else False).astype(bool)
         lost = ca[ca.final_noL1 & ~ca.L1 & ca.labeled & is_risky]
