@@ -127,9 +127,10 @@ def parse_args() -> argparse.Namespace:
 def load_masks_ccs(args) -> tuple[dict, list[pd.DataFrame], list[pd.DataFrame]]:
     masks, evs, cas = {}, [], []
     for platform in args.platform:
-        d = Path(args.screen[0].format(platform=platform)) if len(args.screen) == 1 \
-            else Path(args.screen[args.platform.index(platform)])
-        d = Path(str(d).format(platform=platform))
+        # --screen が 1 つなら {platform} を埋めるひな形、複数なら --platform と同じ並び
+        raw = (args.screen[0] if len(args.screen) == 1
+               else args.screen[args.platform.index(platform)])
+        d = Path(raw.format(platform=platform))
         seg = pd.read_csv(d / "segments.csv")
         want = {(r.drive_id, int(r.segment)) for r in seg.itertuples()}
         refs = [r for r in ccs.find_segments(args.cache, platform)
