@@ -67,6 +67,7 @@ scripts/
   l1_round_thresholds.py   L1 の閾値を丸い値の総当たりで選び、leave-one-out で確かめる
   l1_apply_ccs.py          固定した L1 閾値を commaCarSegments に当てる
   l1_branch_contrib.py     L1 の枝ごとの寄与と ablation (閾値は固定のまま)
+  l1_l3_chain.py           L1 を L3 の出力に当て、種別ごとの保持率と最終候補数を出す
   calibrate_beta_noise.py  横滑り角に載るセンサ雑音を直進区間から実測する
   validate_sideslip_filter.py  横滑りフィルタの再現率を KIT MSDM で測る
   check_env.py             実行環境が整っているかを確かめる
