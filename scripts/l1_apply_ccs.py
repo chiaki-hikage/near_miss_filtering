@@ -4,8 +4,10 @@
 **車種ごとに閾値を調整しない。** 調整すると「その車種の分布に合わせただけ」に
 なり、別の車種へ持っていけない。固定した値で通過率がどう動くかを見る。
 
+**基本候補は高圧縮 (near_miss.l1.BASE)。** 標準と 1 段階厳は比較用に残してある。
+
   標準    v >= 5 m/s かつ (ax <= -2.0 m/s^2 または |ay| >= 2.0 m/s^2)
-  高圧縮  v >= 5 m/s かつ (ax <= -2.5 m/s^2 または |ay| >= 2.0 m/s^2)
+  高圧縮  v >= 5 m/s かつ (ax <= -2.5 m/s^2 または |ay| >= 2.0 m/s^2)  <- 基本候補
 
 これに加えて、**制御・安全系フラグが立った窓は速度・加速度に関係なく通す**。
 TRC 単独の旋回加速も L1 では落とさない (優先度は後段で決める)。
@@ -41,6 +43,7 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
+from near_miss import l1 as L1
 from near_miss.config import (
     DEFAULT_VEHICLE_DIR,
     find_vehicle_config_for_platform,
@@ -48,22 +51,16 @@ from near_miss.config import (
 )
 from near_miss.io import comma_car_segments as ccs
 
-# comma2k19 で決めた固定条件。ここは車種で変えない。
-CONFIGS = {
-    "標準": {"ax": -2.0, "ay": 2.0, "v_min": 5.0},
-    "高圧縮": {"ax": -2.5, "ay": 2.0, "v_min": 5.0},
-}
+# comma2k19 で決めた固定条件。ここは車種で変えない。定義は near_miss.l1 に置いてある。
+CONFIGS = {L1.BASE_NAME: L1.BASE, **L1.ALTERNATIVES}
 
-# 無条件通過にする制御・安全系フラグ
-PASS_FLAGS = ("abs_active_flag", "vsc_active_flag", "precollision_active")
-# slip_warn は多値。値 4 だけが実作動 (3 = 始動時ランプ試験、7 = 継続点灯)
-SLIP_WARN_RANGE = (3.5, 4.5)
-# 立ち方は数えるが通過条件には使わないもの
-WATCH_FLAGS = ("tc_disabled", "abs_fault")
+PASS_FLAGS = L1.PASS_FLAGS
+SLIP_WARN_RANGE = L1.SLIP_WARN_RANGE
+WATCH_FLAGS = L1.WATCH_FLAGS
 
-WINDOW_S = 2.0
-STEADY_WIN_S = 10.0
-STEADY_DELTA = 1.0
+WINDOW_S = L1.WINDOW_S
+STEADY_WIN_S = L1.STEADY_WIN_S
+STEADY_DELTA = L1.STEADY_DELTA
 
 _S: dict = {}
 
@@ -135,7 +132,7 @@ def run_segment(ref) -> dict | None:
         _, hi = st(f)
         per_flag[f] = int(np.where(np.isfinite(hi), hi > 0.5, False).sum())
 
-    gate = np.where(np.isfinite(sp_hi), sp_hi >= 5.0, False)
+    gate = np.where(np.isfinite(sp_hi), sp_hi >= L1.BASE["v_min"], False)
 
     out = {"platform": _S["platform"], "drive_id": ref.drive_id, "segment": ref.index,
            "n_windows": n, "seconds": float(b - a), "n_gate": int(gate.sum()),
@@ -160,6 +157,7 @@ def run_segment(ref) -> dict | None:
         out[f"n_kin_{name}"] = int(kin.sum())
         out[f"n_total_{name}"] = int(tot.sum())
         out[f"n_steady_pass_{name}"] = int((tot & steady).sum())
+        out[f"seg_pass_{name}"] = bool(tot.any())          # この 60 秒 segment を残すか
         masks[name] = (kin, tot)
 
     # direct_slip の事象の保持
@@ -231,7 +229,9 @@ def main() -> int:
             col = f"flag_{f}"
             if col in g:
                 base[f"rate_{f}"] = g[col].sum() / nw
+        base["n_segments"] = int(len(g))
         for name in CONFIGS:
+            base[f"seg_rate_{name}"] = g[f"seg_pass_{name}"].mean()
             base[f"kin_{name}"] = g[f"n_kin_{name}"].sum() / nw
             base[f"total_{name}"] = g[f"n_total_{name}"].sum() / nw
             base[f"delta_{name}"] = base[f"total_{name}"] - base[f"kin_{name}"]
@@ -241,8 +241,9 @@ def main() -> int:
     s.to_csv(args.out / "summary.csv", index=False)
 
     print("\n■ 車種別 通過率 (窓 2 秒)")
-    show = ["platform", "hours", "kin_標準", "total_標準", "delta_標準",
-            "kin_高圧縮", "total_高圧縮", "delta_高圧縮", "flag_rate", "steady_rate"]
+    show = (["platform", "hours"]
+            + [f"total_{n}" for n in CONFIGS] + [f"seg_rate_{n}" for n in CONFIGS]
+            + ["flag_rate", "steady_rate"])
     t = s[show].copy()
     for c in show[2:]:
         t[c] = (t[c] * 100).round(2)
