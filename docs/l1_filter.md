@@ -5,12 +5,12 @@
 
 実装
 
-* `scripts/raw_can_filter.py` — 通過率を狙った閾値探索 (comma2k19)
-* `scripts/l1_trigger_search.py` — 枝ごとの通過率の配分探索、窓方式と event 方式の比較
-* `scripts/l1_round_thresholds.py` — 丸い閾値の総当たりと leave-one-out
-* `scripts/l1_apply_ccs.py` — 固定した閾値を commaCarSegments に当てる
-* `scripts/l1_branch_contrib.py` — 枝ごとの寄与と ablation (閾値は固定のまま)
-* `scripts/l1_l3_chain.py` — L1 を L3 の出力に当て、種別ごとの保持率と最終候補数を出す
+* `scripts/l1/raw_can_filter.py` — 通過率を狙った閾値探索 (comma2k19)
+* `scripts/l1/l1_trigger_search.py` — 枝ごとの通過率の配分探索、窓方式と event 方式の比較
+* `scripts/l1/l1_round_thresholds.py` — 丸い閾値の総当たりと leave-one-out
+* `scripts/l1/l1_apply_ccs.py` — 固定した閾値を commaCarSegments に当てる
+* `scripts/l1/l1_branch_contrib.py` — 枝ごとの寄与と ablation (閾値は固定のまま)
+* `scripts/l1/l1_l3_chain.py` — L1 を L3 の出力に当て、種別ごとの保持率と最終候補数を出す
 
 ---
 
@@ -33,7 +33,7 @@
 
 自車の運動しか見ないので、**自車が反応していない接近事象は原理的に拾えない**。
 人手ラベルの risky 12 件を実測で 2 つに分けた
-(`scripts/l1_trigger_search.py` の `--react-*`、出力 `out/l1_trigger/classification.csv`)。
+(`scripts/l1/l1_trigger_search.py` の `--react-*`、出力 `out/l1_trigger/classification.csv`)。
 
 | 分類 | 件数 | 基準 |
 |---|---|---|
@@ -90,7 +90,7 @@ TRC 単独の旋回加速も L1 では落とさない (優先度は後段で決�
 
 固定した丸い閾値 (`ax_decel` −2.5 / `ax_accel` +3.0 / `ay` 2.0 / `yaw` 15 /
 `steer` 50 / `v_min` 5.0) のまま、枝を 1 本ずつ単独で使ったときの通過率と、
-最終 OR (高圧縮) に対する寄与を測った (`scripts/l1_branch_contrib.py`)。
+最終 OR (高圧縮) に対する寄与を測った (`scripts/l1/l1_branch_contrib.py`)。
 **閾値の再最適化はしていない。**
 
 * **単独通過率** その枝だけで通る 2 秒窓の割合。運動量枝には速度ゲートを掛ける
@@ -232,7 +232,7 @@ leave-one-out で条件を選び直し、外した正例が拾えるかを確か
 ## 5. commaCarSegments での実測 — Toyota 4 車種 / 587.1 時間
 
 comma2k19 で固定した閾値を**車種ごとに調整せず**当てた
-(`scripts/l1_apply_ccs.py`、出力 `out/l1_ccs_v2/`)。35,226 セグメント。
+(`scripts/l1/l1_apply_ccs.py`、出力 `out/l1_ccs_v2/`)。35,226 セグメント。
 
 | 指標 | 標準 | 高圧縮 | 1 段階厳 |
 |---|---|---|---|
@@ -280,7 +280,7 @@ comma2k19 で固定した閾値を**車種ごとに調整せず**当てた
 
 ## 6. L3 との突き合わせ — 何が残って何が落ちるか
 
-基本候補 (高圧縮) を L3 の出力に当てた (`scripts/l1_l3_chain.py`)。
+基本候補 (高圧縮) を L3 の出力に当てた (`scripts/l1/l1_l3_chain.py`)。
 **検出条件そのものは変えない。** 事象の区間に L1 の通過窓が 1 つでも重なれば残す。
 
 段の並びは L3 (既存の `events.csv` / `candidates.csv`) → L1 →

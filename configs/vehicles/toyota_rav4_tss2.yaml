@@ -56,7 +56,7 @@ geometry:
 
   # beta のセンサ雑音。直進区間の beta の散らばりを速度で分けて
   #     sigma_beta(v) = sqrt( (l_r*sigma_r/v)^2 + (k*sigma_ay)^2 )
-  # に当てはめて求めた (scripts/calibrate_beta_noise.py)。
+  # に当てはめて求めた (scripts/validate/calibrate_beta_noise.py)。
   # 横滑りフィルタの 1 次判定は、この式で割った beta_sigma を使う。
   # deg で固定すると 1/v のぶんだけ低速側が雑音で埋まるため。
   # 実測: commaCarSegments 301 セグメント / 直進 178,876 点 / 残差 rms 0.016 deg
@@ -65,7 +65,7 @@ geometry:
 
 
 # 加速度センサ (accel_x / accel_y) の向きは車両ごとに違う。
-# scripts/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
+# scripts/validate/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
 # (src/near_miss/sign_calibration.py)。判定できなかった車両・表に無い車両は
 # 加速度チャネルを使わない。表を作り直すと config_hash も変わる。
 calibration:

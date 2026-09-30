@@ -6,7 +6,7 @@ L3 が検出する 24 種のイベントの分類・使用する特徴量・判�
 手で書き写していないので、閾値を変えても表がずれない。再生成は次のとおり。
 
 ```bash
-uv run python scripts/dump_event_rules.py --markdown
+uv run python scripts/report/dump_event_rules.py --markdown
 ```
 
 処理の位置づけは [pipeline_overview.md](pipeline_overview.md)、

@@ -75,7 +75,7 @@ def test_bootstrap_forces_utf8_stdout():
     """LANG が無い Linux でも日本語が出せること。
 
     子プロセスの環境から LANG/LC_ALL を外し、標準出力の文字コードが
-    UTF-8 になっていることを確かめる。scripts/_bootstrap.py の役目。
+    UTF-8 になっていることを確かめる。scripts/l1/_bootstrap.py の役目。
     """
     code = (
         "import sys; sys.path.insert(0, 'scripts'); import _bootstrap;"
@@ -188,7 +188,7 @@ def test_parallel_matches_sequential_on_real_data():
     """worker=1 と worker=2 で結果が完全に一致すること。
 
     実データが要るので、キャッシュが無ければ飛ばす。
-    網羅的な突き合わせは scripts/benchmark_workers.py が 2,000 セグメントで行う。
+    網羅的な突き合わせは scripts/validate/benchmark_workers.py が 2,000 セグメントで行う。
     """
     from near_miss.config import (
         DEFAULT_DETECTION,

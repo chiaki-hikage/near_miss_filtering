@@ -1,4 +1,4 @@
-"""スリップ事象の種別分け (scripts/rank_slip.py) の試験。
+"""スリップ事象の種別分け (scripts/detect/rank_slip.py) の試験。
 
 確かめること
   1. 横方向は**積極的な条件**を満たしたときだけ。残りものを寄せない
@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts" / "detect"
 
 
 @pytest.fixture(scope="module")

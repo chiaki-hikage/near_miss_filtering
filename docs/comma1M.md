@@ -119,7 +119,7 @@ Utah 76 / Massachusetts 69 / Minnesota 65 / Iowa 61。
 
 ## 6. thumbnail からの天候の判定
 
-`scripts/score_comma1m_weather.py`。HSV と色鮮やかさから指標を作る。
+`scripts/validate/score_comma1m_weather.py`。HSV と色鮮やかさから指標を作る。
 
 ### 失敗した最初の案
 
@@ -210,7 +210,7 @@ ECEF → ENU の回転は `pymap3d.ecef2enuv` と 3.6e-15 まで一致するこ�
 
 ## 8. 天候グループ別のスクリーニング結果
 
-`scripts/screen_comma1m.py`。snow 300 件 / wet 234 件 / control 300 件、
+`scripts/detect/screen_comma1m.py`。snow 300 件 / wet 234 件 / control 300 件、
 計 13.6 h。閾値は comma2k19 で決めたまま (`configs/detection.yaml`)。
 
 ### イベント件数 [件/h]
@@ -271,7 +271,7 @@ course rate に対しては改めて分布から決め直す必要がある。
 
 したがって「対象フレーム直前の鍵フレームから必要な範囲まで」を Range で取り、
 先頭に `global_prefix` を付ければ、それだけで復号できる HEVC になる。
-`scripts/review_comma1m_clips.py` がこれを行う。
+`scripts/review/review_comma1m_clips.py` がこれを行う。
 
 前後 3.5 秒 (実測 93〜169 フレーム) で **1 件あたり 4.6〜10.5 MB**。
 23 件で 197 MB。全編を落とすと同じ 23 件で 1,725 MB になる。

@@ -4,10 +4,10 @@
 #
 # opendbc では RAV4 TSS2 と同じ DBC (toyota_nodsu_pt) を使い、実機でも
 # 0x024 / 0x0AA / 0x226 / 0x3B7 が流れていることを 3 セグメントで確認した
-# (scripts/survey_platforms.py)。だがアドレスが同じでもビットの意味が同じとは
+# (scripts/report/survey_platforms.py)。だがアドレスが同じでもビットの意味が同じとは
 # 限らない。特に 0x226 (ABSACT / VSCACT) と 0x3B7 (SLIP_WARN) は opendbc に無く、
 # RAV4 TSS2 の実データから解析したもの。**validated はすべて false に落としてある。**
-# scripts/validate_slip_flags.py の結果で 1 つずつ戻すこと。
+# scripts/validate/validate_slip_flags.py の結果で 1 つずつ戻すこと。
 #
 # 収録車両の VIN 先頭 (40 セグメント) は SB1 (英国) / JTD (日本) / 9BR (ブラジル) /
 # 5YF (米国) などが混在する。仕向け地で ECU が違う可能性があるので、検証は
@@ -35,7 +35,7 @@ geometry:
 
 
 # 加速度センサ (accel_x / accel_y) の向きは車両ごとに違う。
-# scripts/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
+# scripts/validate/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
 # (src/near_miss/sign_calibration.py)。判定できなかった車両・表に無い車両は
 # 加速度チャネルを使わない。表を作り直すと config_hash も変わる。
 calibration:

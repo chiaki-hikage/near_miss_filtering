@@ -20,7 +20,7 @@ ASSUME_YES=0
 FETCH=1
 FROM_S3=0
 OUT="out/demo_sideslip"
-MB_PER_SEGMENT=1.38          # 実測平均 (scripts/fetch_car_segments.py と同じ値)
+MB_PER_SEGMENT=1.38          # 実測平均 (scripts/fetch/fetch_car_segments.py と同じ値)
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -58,7 +58,7 @@ else
 fi
 
 step "2. 環境の確認"
-uv run python scripts/check_env.py --data
+uv run python scripts/validate/check_env.py --data
 
 step "3. 単体試験 (データ不要)"
 uv run python -m pytest tests/test_sideslip.py -q
@@ -92,10 +92,10 @@ if [ "$HAVE" -lt "$N" ]; then
     fi
     if [ "$FROM_S3" -eq 1 ]; then
       # EC2: 指定の S3 バケットから取り込む。認証は IAM Role。
-      uv run python scripts/fetch_from_s3.py car-segments \
+      uv run python scripts/fetch/fetch_from_s3.py car-segments \
         --platform "$PLATFORM" --limit "$N" --per-route 10 -y
     else
-      uv run python scripts/fetch_car_segments.py "$PLATFORM" --limit "$N" --per-route 10
+      uv run python scripts/fetch/fetch_car_segments.py "$PLATFORM" --limit "$N" --per-route 10
     fi
   fi
 fi
@@ -107,7 +107,7 @@ fi
 step "5. 横滑り 2 段フィルタ ($N セグメント)"
 # --select catalog: 手元のキャッシュに何が入っていても同じ N 本を選ぶ。
 # 別のマシンで数字を突き合わせられるようにするため。
-uv run python scripts/screen_sideslip.py --platform "$PLATFORM" \
+uv run python scripts/detect/screen_sideslip.py --platform "$PLATFORM" \
   --limit "$N" --select catalog --per-route 10 --out "$OUT"
 
 step "6. 出力の確認"
@@ -133,7 +133,7 @@ PY
 step "7. 本物の横滑りを拾えるかの確認 (KIT MSDM)"
 KIT="$REPO/raw_data/kit_msdm/10.35097-44a91t97pmnha1k9/data/dataset"
 if [ -d "$KIT" ] && [ -n "$(ls -A "$KIT"/*.mat 2>/dev/null)" ]; then
-  uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3 \
+  uv run python scripts/validate/validate_sideslip_filter.py --kind dynamic --min-speed 3 \
     | tail -n 6
 else
   echo "  KIT MSDM が置かれていないので飛ばします。"

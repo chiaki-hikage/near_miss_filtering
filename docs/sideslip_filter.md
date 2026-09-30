@@ -84,7 +84,7 @@ r と a_y の雑音が独立なら
     sigma_beta(v) = sqrt( (l_r·sigma_r / v)² + (k·sigma_ay)² )
 
 直進に近い区間 (`|舵角レート| < 3 deg/s` かつ `|ay_kin| < 0.3 m/s²`) の beta の
-散らばりを速度で分けて、この式に当てはめる (`scripts/calibrate_beta_noise.py`)。
+散らばりを速度で分けて、この式に当てはめる (`scripts/validate/calibrate_beta_noise.py`)。
 
 | 車種 | セグメント | 直進サンプル | sigma_r [deg/s] | sigma_ay [m/s²] | 残差 rms |
 |---|---|---|---|---|---|
@@ -275,7 +275,7 @@ p99 = 0.90 / p99.9 = 1.18 / p99.99 = 1.57)。KIT の実測横滑りでは 2.4% �
 
 キャッシュ済みの 2,000 セグメント (33.1 時間) 全部に通した。所要 12.2 分。
 
-    uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
+    uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
         --out out/sideslip_rav4_tss2 --dump-stage1
 
 | 段階 | サンプル | 全体比 | 区間 |
@@ -378,7 +378,7 @@ commaCarSegments が 0 件でも、それだけでは「その挙動が無い」
 「フィルタが動いていない」のか区別できない。beta が光学式センサで実測されている
 KIT MSDM を正のサンプルとして通す。
 
-    uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3
+    uv run python scripts/validate/validate_sideslip_filter.py --kind dynamic --min-speed 3
 
 抽出側とまったく同じ経路を通す。判定に使うのは車速・ヨーレート・横加速度・舵角
 だけで、**実測 beta は答え合わせにしか使わない**。
@@ -424,21 +424,21 @@ KIT MSDM を正のサンプルとして通す。
 
 ```bash
 # 1. beta の雑音を車種ごとに測る (初回だけ)
-uv run python scripts/calibrate_beta_noise.py --platform TOYOTA_RAV4_TSS2 --limit 300
+uv run python scripts/validate/calibrate_beta_noise.py --platform TOYOTA_RAV4_TSS2 --limit 300
 #    出力の 2 行を configs/vehicles/<車種>.yaml の geometry に書き写す
 
 # 2. 抽出
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --out out/sideslip_rav4_tss2
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --out out/sideslip_rav4_tss2
 
 #    ドライブ単位で並列にする (判定は変わらない。Mac M4 Pro で 8 並列 6.5 倍)
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --workers 8 \
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --workers 8 \
     --out out/sideslip_rav4_tss2
 
 # 3. 適用範囲を変えた感度確認
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --min-speed 3 --out out/sideslip_low
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 --min-speed 3 --out out/sideslip_low
 
 # 4. 本物の横滑りを拾えるかの確認 (KIT MSDM)
-uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3
+uv run python scripts/validate/validate_sideslip_filter.py --kind dynamic --min-speed 3
 ```
 
 出力
@@ -633,7 +633,7 @@ Highlander TSS2 (114.2 h)、計 35,226 セグメント。確認単位 **187 件*
 | Highlander | 59 | 6 | 32 | 15 | 6 |
 | **計** | **187** | **11** | **111** | **35** | **30** |
 
-種別 (`scripts/rank_slip.py`) では **車輪のロック 121 / 駆動輪の空転 55 /
+種別 (`scripts/detect/rank_slip.py`) では **車輪のロック 121 / 駆動輪の空転 55 /
 横方向の不安定 13 (候補) / 未分類 8**。
 
 **`multi_evidence` 11 件はすべて「輪速 + 横方向」**で、他の組み合わせは無い
@@ -670,7 +670,7 @@ beta 側の 41 件は全部が `C_弱い候補`（\|β\| 最大 2.66 deg で `gr
 
 0x226 / 0x3B7 は opendbc に無い。**アドレスが同じでもビットの意味が同じとは
 限らない**ので、件数を数える前に 4 車種で振る舞いを並べて比べた
-(`scripts/validate_slip_flags.py` → `report_slip_flag_validation.py`、
+(`scripts/validate/validate_slip_flags.py` → `report_slip_flag_validation.py`、
 出力 `out/validate_slip_flags_v2/`)。判定 28 項目のうち 27 が○。
 
 * `slip_warn = 3` は 4 車種とも「ルート先頭・停車・2.2〜2.6 秒・`tc_disabled`
@@ -703,7 +703,7 @@ Corolla は 73 回中 13 回 (10 台)。走行中の対照窓 10 万件には 1 
 ### 9.8 拾った事象の質 — 作動と挙動が整合するか
 
 `multi` / `high` に相当する 69 件 (旧 `A_確定`) を 1 件ずつ読み直した
-(`scripts/review_direct_slip.py`、出力 `out/review_direct_slip/`)。
+(`scripts/review/review_direct_slip.py`、出力 `out/review_direct_slip/`)。
 
 判定は**整合 32 / 要確認 35 / 不整合 2**。ただし**強さの分布の方が重要**で、
 `ax <= −4` か輪速差 `>= 2` か \|ay\| `>= 3.9` のどれかを満たすのは **15 件だけ**。
@@ -728,7 +728,7 @@ Highlander の `54bb8c38727b4e38` seg 16 で、`ax` −8.0 m/s² の直進制動
 `ay_can` 6.08 に対し 車速 × ヨー は 0.13、ヨーレートは 0.9 °/s しかない。
 ピッチングで前後方向の加速度が横軸へ回り込んでいるとみられるが、原因は未確定。
 
-**影響範囲を数えた** (`scripts/check_ay_divergence.py`、出力 `out/ay_divergence/`)。
+**影響範囲を数えた** (`scripts/validate/check_ay_divergence.py`、出力 `out/ay_divergence/`)。
 `ax <= −3.0` かつ \|`ay_can`\| − \|車速 × ヨー\| `>= 2.0` の窓は:
 
 | 車種 | 区間 | 1 時間あたり |
@@ -753,7 +753,7 @@ Highlander の 142 区間は 32 台に分散しており、特定個体の故障
 
 ### 9.10 補助指標としての beta / ヨー残差
 
-`multi` / 横方向候補に対して当てはめた (`scripts/eval_lateral_indicators.py`、
+`multi` / 横方向候補に対して当てはめた (`scripts/validate/eval_lateral_indicators.py`、
 出力 `out/review_lateral/`)。諸元が未確定の 3 車種では、**その走行自身から**
 定常円旋回モデル `yaw = v·δ/(a + b·v²)` を当てはめる。1 パラメータ (b = 0) で
 解くと `b·v²` を `steer_ratio` が吸収し、高速の走行で 48:1 という非物理な値が

@@ -422,7 +422,7 @@ def test_upload_selection_matches_fetch_selection(tmp_path):
 
 def test_upload_cli_refuses_outside_ec2():
     r = subprocess.run(
-        [sys.executable, str(REPO / "scripts" / "upload_to_s3.py"), "kit-msdm", "--dry-run"],
+        [sys.executable, str(REPO / "scripts" / "fetch" / "upload_to_s3.py"), "kit-msdm", "--dry-run"],
         capture_output=True, text=True, cwd=REPO,
         env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(REPO / "src"), "PYTHONUTF8": "1"},
     )
@@ -487,7 +487,8 @@ def test_analysis_modules_do_not_import_s3():
         text = (REPO / "src" / "near_miss" / name).read_text(encoding="utf-8")
         assert "s3_sync" not in text and "boto3" not in text, f"{name} が S3 を参照している"
 
-    for name in ("screen_sideslip.py", "benchmark_workers.py", "validate_sideslip_filter.py"):
+    for name in ("detect/screen_sideslip.py", "validate/benchmark_workers.py",
+                 "validate/validate_sideslip_filter.py"):
         text = (REPO / "scripts" / name).read_text(encoding="utf-8")
         assert "s3_sync" not in text and "boto3" not in text, f"{name} が S3 を参照している"
 
@@ -503,7 +504,7 @@ def test_boto3_is_optional():
 def test_cli_refuses_outside_ec2():
     """Mac では既定で止まること (S3 は EC2 運用に限る)。"""
     r = subprocess.run(
-        [sys.executable, str(REPO / "scripts" / "fetch_from_s3.py"), "car-segments", "--dry-run"],
+        [sys.executable, str(REPO / "scripts" / "fetch" / "fetch_from_s3.py"), "car-segments", "--dry-run"],
         capture_output=True, text=True, cwd=REPO,
         env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(REPO / "src"), "PYTHONUTF8": "1"},
     )
@@ -516,7 +517,7 @@ def test_cli_refuses_outside_ec2():
 def test_cli_show_layout_needs_no_aws():
     """対応表の表示に AWS も boto3 も要らないこと。"""
     r = subprocess.run(
-        [sys.executable, str(REPO / "scripts" / "fetch_from_s3.py"), "--show-layout"],
+        [sys.executable, str(REPO / "scripts" / "fetch" / "fetch_from_s3.py"), "--show-layout"],
         capture_output=True, text=True, cwd=REPO,
         env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(REPO / "src"), "PYTHONUTF8": "1"},
     )

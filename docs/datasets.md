@@ -309,7 +309,7 @@ comma1M は safetensors / HEVC の一部だけを取れる。位置は全 4,216 
 
 ### 6.3 確認すること
 
-- `scripts/run_detection.py --dataset <name>` が通る
+- `scripts/detect/run_detection.py --dataset <name>` が通る
 - 既存データセットの検出結果が変わらない (comma2k19 Chunk_1 が基準)
 - `tests/test_<name>.py` に、単位・符号・欠測の扱いの確認を書く
 - 取得スクリプトに `--dry-run` を付け、**落とす前に転送量を出す**

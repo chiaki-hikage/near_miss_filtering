@@ -95,7 +95,7 @@ L1 で平滑化や時刻同期をすると、L2 と同じコストがかかっ�
 
 **加速度センサの符号は個体ごとに違う。** 同じ車種キーでも `accel_x` / `accel_y`
 の向きが逆の車両がある (Highlander TSS2 は 33 台中 21 台)。`ax` と `ay` は必ず
-一緒に反転する。判定は `scripts/calibrate_accel_sign.py` が行い、結果を車種設定の
+一緒に反転する。判定は `scripts/validate/calibrate_accel_sign.py` が行い、結果を車種設定の
 `calibration.accel_sign` から読む。
 
 ### 3.3 L1 軽量フィルタ
@@ -286,22 +286,22 @@ GPU へ逃がして CPU を空けるため。
 
 ```bash
 # L3 まで (comma2k19)
-uv run python scripts/run_detection.py raw_data/Chunk_1 --out out/chunk1
+uv run python scripts/detect/run_detection.py raw_data/Chunk_1 --out out/chunk1
 
 # L3 まで (commaCarSegments を数千セグメント)
-uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 2000 --out out/screen
+uv run python scripts/detect/screen_segments.py TOYOTA_RAV4_TSS2 --limit 2000 --out out/screen
 
 # L1 を当てて段ごとの残存を見る
-uv run python scripts/l1_l3_chain.py ccs --platform TOYOTA_RAV4_TSS2 \
+uv run python scripts/l1/l1_l3_chain.py ccs --platform TOYOTA_RAV4_TSS2 \
     --screen "out/screen_{platform}_2k_v4" --out out/l1_l3/ccs
 
 # 優先度で絞る
-uv run python scripts/filter_priority.py out/chunk1/candidates.csv --out out/priority.csv
+uv run python scripts/detect/filter_priority.py out/chunk1/candidates.csv --out out/priority.csv
 
 # VLM (手順 1 -> 2 -> 採点)
-uv run python scripts/build_vlm_inputs.py  ...
-uv run python scripts/run_vlm_review.py    ...   # GPU が要る
-uv run python scripts/score_vlm_review.py  ...
+uv run python scripts/vlm/build_vlm_inputs.py  ...
+uv run python scripts/vlm/run_vlm_review.py    ...   # GPU が要る
+uv run python scripts/vlm/score_vlm_review.py  ...
 ```
 
 ---

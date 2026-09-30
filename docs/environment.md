@@ -28,7 +28,7 @@
 |---|---|---|
 | 日本語フォント | mac は Hiragino Sans、Linux は Noto Sans CJK JP など | [`src/near_miss/plotting.py`](../src/near_miss/plotting.py) |
 | matplotlib のバックエンド | 画面の無い Linux では `Agg` が要る | 同上 (`plotting.setup()`) |
-| 標準出力の文字コード | Linux は `LANG` 未設定だと ASCII になり、日本語を出した時点で落ちる | [`scripts/_bootstrap.py`](../scripts/_bootstrap.py) |
+| 標準出力の文字コード | Linux は `LANG` 未設定だと ASCII になり、日本語を出した時点で落ちる | [`scripts/l1/_bootstrap.py`](../scripts/l1/_bootstrap.py) |
 | データの取得元 | EC2 は指定の S3 バケット、Mac はローカルの `raw_data/` | [`src/near_miss/io/s3_sync.py`](../src/near_miss/io/s3_sync.py) (§4.4) |
 
 上 3 つは判定の経路にある。4 つ目 (S3) は**判定の経路には無い**。
@@ -98,7 +98,7 @@ uv が無ければ自分で取ってくるので、OS 側の Python は使わな
 | IAM Role | 検証用バケットへの **読み取り専用** (§4.4)。バケットを埋めるときだけ書き込み可のロール (§4.5) |
 
 **アクセスキーはインスタンスに置かない。** インスタンスプロファイル (IAM Role) を
-付けておけば boto3 が自動で拾う。`scripts/fetch_from_s3.py` は静的な鍵が
+付けておけば boto3 が自動で拾う。`scripts/fetch/fetch_from_s3.py` は静的な鍵が
 使われようとしたら止まる (§4.4)。
 
 メモリは 32 GiB あれば十分すぎる。Mac で 200 セグメントを流したときの
@@ -154,7 +154,7 @@ Mac と EC2 で同じものが入っていることが、結果を突き合わ�
 ### 3.6 確認
 
 ```bash
-uv run python scripts/check_env.py --data
+uv run python scripts/validate/check_env.py --data
 ```
 
 必須の依存が欠けていれば 1 で終わる。日本語フォントが無ければここで警告が出る
@@ -202,13 +202,13 @@ near_miss_filtering/
 
 ```bash
 # 車種の一覧 (database.json 約 9 MB を落とすだけ)
-uv run python scripts/fetch_car_segments.py --list
+uv run python scripts/fetch/fetch_car_segments.py --list
 
 # 量の見積り
-uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-route 10 --dry-run
+uv run python scripts/fetch/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-route 10 --dry-run
 
 # 取得 (30 本 ≒ 41 MB)
-uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-route 10
+uv run python scripts/fetch/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-route 10
 ```
 
 | 本数 | 走行時間 | 容量の目安 |
@@ -230,18 +230,18 @@ uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --limit 30 --per-ro
 | 配布物 | BagIt を tar 1 本にまとめたもの `msdm.tar` **171,741,696 バイト** |
 | MD5 | `d7eda9478c28a88b60074ee8ab2b0286` |
 
-`scripts/fetch_kit_msdm.py` が受け取りから照合までを行う。
+`scripts/fetch/fetch_kit_msdm.py` が受け取りから照合までを行う。
 **どこから来たかではなく中身で確かめる**ので、経路が限られる環境でも使える。
 
 ```bash
 # 手元にある tar を使う (ネットワークを一切使わない)
-uv run python scripts/fetch_kit_msdm.py --tar /mnt/media/msdm.tar
+uv run python scripts/fetch/fetch_kit_msdm.py --tar /mnt/media/msdm.tar
 
 # 外に出られる環境で取ってくる (接続先を表示して確認を取る)
-uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
+uv run python scripts/fetch/fetch_kit_msdm.py --url <配布 URL>
 
 # 既に置いてあるものを照合するだけ
-uv run python scripts/fetch_kit_msdm.py --verify-only
+uv run python scripts/fetch/fetch_kit_msdm.py --verify-only
 ```
 
 照合は 2 段。**どちらかが合わなければ展開しない。**
@@ -270,7 +270,7 @@ EC2 では公開元ではなく、**あらかじめ用意した S3 バケット*
 取り込む。対象は commaCarSegments / KIT MSDM / comma2k19 の 3 つ。
 
 ```bash
-uv run python scripts/fetch_from_s3.py --show-layout
+uv run python scripts/fetch/fetch_from_s3.py --show-layout
 ```
 
 > **Mac ではこの経路は使わない。** EC2 の上でないと既定で止まる
@@ -308,7 +308,7 @@ s3://<バケット>/near_miss/comma2k19/Chunk_1/<drive>/<n>/processed_log/...
 優先順は **引数 > 環境変数 > 設定ファイル**。
 
 ```bash
-uv run python scripts/fetch_from_s3.py car-segments --bucket s3://<バケット>/near_miss
+uv run python scripts/fetch/fetch_from_s3.py car-segments --bucket s3://<バケット>/near_miss
 export NEAR_MISS_S3_URI=s3://<バケット>/near_miss
 ```
 
@@ -347,21 +347,21 @@ NAT の転送料がかからない。2.8 GB を落とすだけでも効く。
 
 ```bash
 # 車種 / route 単位で絞って見積り
-uv run python scripts/fetch_from_s3.py car-segments \
+uv run python scripts/fetch/fetch_from_s3.py car-segments \
     --platform TOYOTA_RAV4_TSS2 --routes 3 --per-route 10 --dry-run
 
 # 取り込む
-uv run python scripts/fetch_from_s3.py car-segments \
+uv run python scripts/fetch/fetch_from_s3.py car-segments \
     --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10
 
 # KIT MSDM を丸ごと (約 172 MB)
-uv run python scripts/fetch_from_s3.py kit-msdm
+uv run python scripts/fetch/fetch_from_s3.py kit-msdm
 
 # comma2k19 はチャンク単位 (1 本 約 9.7 GB)
-uv run python scripts/fetch_from_s3.py comma2k19 --chunk Chunk_1 --dry-run
+uv run python scripts/fetch/fetch_from_s3.py comma2k19 --chunk Chunk_1 --dry-run
 
 # 3 つまとめて
-uv run python scripts/fetch_from_s3.py all --chunk Chunk_1 --dry-run
+uv run python scripts/fetch/fetch_from_s3.py all --chunk Chunk_1 --dry-run
 ```
 
 `--dry-run` の出力例:
@@ -419,12 +419,12 @@ S3 から取っても**同じセグメントが選ばれる**。
 ### 4.5 EC2: バケットにデータを入れる
 
 バケットを埋める側の作業。**一度やれば以後は §4.4 だけで済む。**
-`scripts/upload_to_s3.py` が使う対応表は §4.4 と同じ (`s3_sync.DATASETS`) で、
+`scripts/fetch/upload_to_s3.py` が使う対応表は §4.4 と同じ (`s3_sync.DATASETS`) で、
 それを逆向きに使う。対応が 1 か所にしか無いので、**上げた場所と取りに行く場所が
 ずれない**（`tests/test_s3_sync.py` で往復を確認している）。
 
 ```bash
-uv run python scripts/upload_to_s3.py --show-layout
+uv run python scripts/fetch/upload_to_s3.py --show-layout
 ```
 
 #### commaCarSegments — 公開元から取ってそのまま上げる
@@ -434,11 +434,11 @@ uv run python scripts/upload_to_s3.py --show-layout
 
 ```bash
 # まず量を確かめる
-uv run python scripts/upload_to_s3.py car-segments \
+uv run python scripts/fetch/upload_to_s3.py car-segments \
     --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --fetch --dry-run
 
 # 実行 (公開元から 2.8 GB を取り、そのままバケットへ)
-uv run python scripts/upload_to_s3.py car-segments \
+uv run python scripts/fetch/upload_to_s3.py car-segments \
     --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --fetch --max-gb 4
 ```
 
@@ -452,11 +452,11 @@ uv run python scripts/upload_to_s3.py car-segments \
 インスタンス上へ置く)。置いたあとで:
 
 ```bash
-uv run python scripts/upload_to_s3.py kit-msdm --dry-run
-uv run python scripts/upload_to_s3.py kit-msdm
+uv run python scripts/fetch/upload_to_s3.py kit-msdm --dry-run
+uv run python scripts/fetch/upload_to_s3.py kit-msdm
 
-uv run python scripts/upload_to_s3.py comma2k19 --chunk Chunk_1 --dry-run
-uv run python scripts/upload_to_s3.py comma2k19 --chunk Chunk_1 -y --max-gb 10
+uv run python scripts/fetch/upload_to_s3.py comma2k19 --chunk Chunk_1 --dry-run
+uv run python scripts/fetch/upload_to_s3.py comma2k19 --chunk Chunk_1 -y --max-gb 10
 ```
 
 #### 書き込み用の IAM Role は分ける
@@ -517,7 +517,7 @@ uv run python scripts/upload_to_s3.py comma2k19 --chunk Chunk_1 -y --max-gb 10
 **1. 外に出られる作業機で取得し、照合する**
 
 ```bash
-uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
+uv run python scripts/fetch/fetch_kit_msdm.py --url <配布 URL>
 ```
 
 接続前に、接続先ホスト・プロキシ・送信する情報を表示して確認を取る
@@ -526,21 +526,21 @@ uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
 媒体で渡された tar があるなら、この機すら要らない:
 
 ```bash
-uv run python scripts/fetch_kit_msdm.py --tar /mnt/media/msdm.tar
+uv run python scripts/fetch/fetch_kit_msdm.py --tar /mnt/media/msdm.tar
 ```
 
 **2. S3 バケットへ送り込む**
 
 ```bash
-uv run python scripts/upload_to_s3.py kit-msdm --dry-run
-uv run python scripts/upload_to_s3.py kit-msdm
+uv run python scripts/fetch/upload_to_s3.py kit-msdm --dry-run
+uv run python scripts/fetch/upload_to_s3.py kit-msdm
 ```
 
 **3. 閉鎖 EC2 で取り込み、もう一度照合する**
 
 ```bash
-uv run python scripts/fetch_from_s3.py kit-msdm
-uv run python scripts/fetch_kit_msdm.py --verify-only
+uv run python scripts/fetch/fetch_from_s3.py kit-msdm
+uv run python scripts/fetch/fetch_kit_msdm.py --verify-only
 ```
 
 `--verify-only` は BagIt の 44 件すべての MD5 を取り直す (172 MB / 約 0.3 秒)。
@@ -553,7 +553,7 @@ uv run python scripts/fetch_kit_msdm.py --verify-only
 
 ```bash
 aws s3 cp s3://<バケット>/near_miss/kit_msdm/msdm.tar raw_data/kit_msdm/
-uv run python scripts/fetch_kit_msdm.py --tar raw_data/kit_msdm/msdm.tar
+uv run python scripts/fetch/fetch_kit_msdm.py --tar raw_data/kit_msdm/msdm.tar
 ```
 
 tar を展開する前に**中身を検査する**。絶対パス・`..`・シンボリックリンク・
@@ -568,9 +568,9 @@ MD5 の照合を `--allow-checksum-mismatch` で飛ばしても、この検査�
 
 ```bash
 export HTTPS_PROXY=http://proxy.internal:3128
-uv run python scripts/fetch_kit_msdm.py --url <配布 URL>
+uv run python scripts/fetch/fetch_kit_msdm.py --url <配布 URL>
 # または
-uv run python scripts/fetch_kit_msdm.py --url <配布 URL> --proxy http://proxy.internal:3128
+uv run python scripts/fetch/fetch_kit_msdm.py --url <配布 URL> --proxy http://proxy.internal:3128
 ```
 
 **プロキシが TLS を終端していても MD5 の照合で気付ける。** 中身が書き換わって
@@ -594,7 +594,7 @@ commaCarSegments を扱うなら、**データと同じように持ち込む必�
 
 ```bash
 # 外に出られる作業機で (120 KB)
-uv run python scripts/fetch_cereal_schema.py
+uv run python scripts/fetch/fetch_cereal_schema.py
 
 # 閉鎖 EC2 へは媒体か S3 で運ぶ
 aws s3 cp --recursive data/cereal s3://<バケット>/near_miss/cereal      # 作業機
@@ -613,7 +613,7 @@ uv sync --extra viz --extra dev --extra s3
 持ち込みが足りているかは次で分かる:
 
 ```bash
-uv run python scripts/check_env.py --data
+uv run python scripts/validate/check_env.py --data
 ```
 
 ---
@@ -627,7 +627,7 @@ uv run python scripts/check_env.py --data
 これだけで次を順に行う。所要 **30 秒程度** (取得を除く)。
 
 1. `uv sync`
-2. `scripts/check_env.py --data` で環境とデータを確認
+2. `scripts/validate/check_env.py --data` で環境とデータを確認
 3. `pytest tests/test_sideslip.py` (データ不要の単体試験 15 件)
 4. データが足りなければ**容量を表示して確認を取ってから**取得
 5. `screen_sideslip.py` を 30 セグメントで実行
@@ -654,24 +654,24 @@ uv run python scripts/check_env.py --data
 
 ```bash
 # 横滑りの抽出 (commaCarSegments)
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
     --limit 200 --out out/sideslip_rav4_tss2
 
 # 決まった順で選ぶ (別マシンとの突き合わせ用)
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
     --limit 30 --select catalog --out out/demo_sideslip
 
 # 再現率の確認 (KIT MSDM)
-uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3
+uv run python scripts/validate/validate_sideslip_filter.py --kind dynamic --min-speed 3
 
 # beta の雑音の再当てはめ (車種を増やしたとき)
-uv run python scripts/calibrate_beta_noise.py --platform TOYOTA_RAV4_TSS2 --limit 300
+uv run python scripts/validate/calibrate_beta_noise.py --platform TOYOTA_RAV4_TSS2 --limit 300
 
 # 図 (matplotlib が要る。--extra viz)
-uv run python scripts/plot_kit_run.py dynamic_driving_cobble_1 --out out/kit_msdm
+uv run python scripts/review/plot_kit_run.py dynamic_driving_cobble_1 --out out/kit_msdm
 
 # EC2: データを S3 から取り込む (§4.4)。まず --dry-run で量を見る
-uv run python scripts/fetch_from_s3.py car-segments \
+uv run python scripts/fetch/fetch_from_s3.py car-segments \
     --platform TOYOTA_RAV4_TSS2 --limit 2000 --per-route 10 --dry-run
 ```
 
@@ -679,11 +679,11 @@ uv run python scripts/fetch_from_s3.py car-segments \
 
 ```bash
 # 逐次 (既定)
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
     --out out/sideslip_rav4_tss2 --dump-stage1
 
 # ドライブ単位の並列。結果は逐次とバイト単位で同じ (§7)
-uv run python scripts/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
+uv run python scripts/detect/screen_sideslip.py --platform TOYOTA_RAV4_TSS2 \
     --workers 8 --out out/sideslip_rav4_tss2 --dump-stage1
 ```
 
@@ -723,7 +723,7 @@ RAV4 TSS2 の 2,000 セグメントは
 
 ### 実測 (Mac M4 Pro / 12 コア / 2,000 セグメント)
 
-    uv run python scripts/benchmark_workers.py --platform TOYOTA_RAV4_TSS2 \
+    uv run python scripts/validate/benchmark_workers.py --platform TOYOTA_RAV4_TSS2 \
         -w 1 2 4 8 --dump-stage1
 
 | worker | 所要 [秒] | 速度比 | 並列効率 | 候補 | 結果 |
@@ -738,7 +738,7 @@ worker=8 で **6.5 倍**。効率が 8 並列で落ちるのは、12 コアの�
 
 ### 結果が同じであることの確認
 
-`scripts/benchmark_workers.py` が毎回、次の 3 つを worker=1 の結果と
+`scripts/validate/benchmark_workers.py` が毎回、次の 3 つを worker=1 の結果と
 **ハッシュで**突き合わせる。1 つでも違えば終了コード 1 で落ちる。
 
 | 突き合わせるもの | 中身 |
@@ -825,7 +825,7 @@ config_hash : 4d8905fa3b
    選定は `select_segments` の決まった順なので、同じ `database.json` なら同じ 30 本になる。
    確認: `--select catalog` を使っているか、`counts.json` の `n_segments` が 30 か。
 2. 依存のバージョンが違う (`uv sync` を使わず手で入れた等)。
-   確認: `uv run python scripts/check_env.py` の版数を Mac と見比べる。
+   確認: `uv run python scripts/validate/check_env.py` の版数を Mac と見比べる。
 3. rlog が途中までしか落ちていない。
    確認: `find raw_data/comma_car_segments/segments -name rlog.zst | wc -l`
 
@@ -845,7 +845,7 @@ config_hash : 4d8905fa3b
 
 | 症状 | 原因と対処 |
 |---|---|
-| `UnicodeEncodeError` が出る | `LANG` が未設定。`scripts/_bootstrap.py` が UTF-8 に直すので、通常は出ないはず。素の `python` で `src/` を直接叩いた場合は `export PYTHONUTF8=1` |
+| `UnicodeEncodeError` が出る | `LANG` が未設定。`scripts/l1/_bootstrap.py` が UTF-8 に直すので、通常は出ないはず。素の `python` で `src/` を直接叩いた場合は `export PYTHONUTF8=1` |
 | 図の日本語が □ になる | 日本語フォントが無い。§3.2 で入れて `rm -rf ~/.cache/matplotlib` |
 | `matplotlib` が import できない | `uv sync --extra viz` |
 | `capnp` が無いと言われる | `uv sync` (必須依存に入っている)。手で pip を使っていないか確認 |
@@ -871,7 +871,7 @@ config_hash : 4d8905fa3b
 
 ```bash
 uv run python -m pytest -q                                    # 193 件
-uv run python scripts/validate_sideslip_filter.py --kind dynamic --min-speed 3
+uv run python scripts/validate/validate_sideslip_filter.py --kind dynamic --min-speed 3
 ./scripts/demo_sideslip.sh -n 30 --no-fetch
 ```
 
@@ -882,8 +882,8 @@ S3 経路やデータの受け取りを触ったときは追加で:
 ```bash
 uv run python -m pytest tests/test_s3_sync.py -q               # 48 件、AWS には繋がない
 uv run python -m pytest tests/test_kit_msdm_fetch.py -q        # 18 件、外に出ない
-uv run python scripts/fetch_from_s3.py --show-layout           # 対応表が壊れていないか
-uv run python scripts/fetch_kit_msdm.py --verify-only          # 手元の KIT MSDM を再照合
+uv run python scripts/fetch/fetch_from_s3.py --show-layout           # 対応表が壊れていないか
+uv run python scripts/fetch/fetch_kit_msdm.py --verify-only          # 手元の KIT MSDM を再照合
 ```
 
 `tests/test_s3_sync.py` は次を機械的に見ている。

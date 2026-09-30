@@ -371,7 +371,7 @@ def moving_average(x, window):  # 対称カーネル
 4 が本命。1〜3 は書き忘れを拾うが、4 は経路全体を通した保証になる。
 
 生成済みリクエスト **1,318 件の実物**に対しても同じ検査を行い、違反 0 件を確認
-（`scripts/build_vlm_inputs.py` の出力）。
+（`scripts/vlm/build_vlm_inputs.py` の出力）。
 
 ---
 
@@ -641,7 +641,7 @@ bf16 では載らない**。本 PoC の入力は約 3,500 トークンなので 
 計測する件が無くなる。`--no-resume` は既存の結果を消すので使わない。
 
 ```bash
-uv run python scripts/run_vlm_review.py --model qwen3_vl_8b --mode b --limit 64 \
+uv run python scripts/vlm/run_vlm_review.py --model qwen3_vl_8b --mode b --limit 64 \
     --out out/chunk1/vlm/perf_run/results_qwen3_vl_8b_mode_b.jsonl
 ```
 
@@ -695,13 +695,13 @@ src/near_miss/vlm/
     overlay.py    レビュー用 MP4 の字幕描画
 configs/vlm.yaml
 configs/prompts/vlm_v1_clip.md, vlm_v1_online.md
-scripts/list_required_segments.py 段階 0: 要る comma2k19 セグメントの列挙
-scripts/make_onset_template.py    段階 0: onset 付与の様式
-scripts/import_onset_sheet.py     段階 0: 記入の取り込みと検証
-scripts/build_vlm_inputs.py       段階 1: フレーム展開 + リクエスト生成
-scripts/run_vlm_review.py         段階 2: 推論
-scripts/score_vlm_review.py       段階 3: 採点 (--brief / --examples)
-scripts/make_review_video.py      判定を元映像に重ねたレビュー用 MP4
+scripts/fetch/list_required_segments.py 段階 0: 要る comma2k19 セグメントの列挙
+scripts/vlm/make_onset_template.py    段階 0: onset 付与の様式
+scripts/vlm/import_onset_sheet.py     段階 0: 記入の取り込みと検証
+scripts/vlm/build_vlm_inputs.py       段階 1: フレーム展開 + リクエスト生成
+scripts/vlm/run_vlm_review.py         段階 2: 推論
+scripts/vlm/score_vlm_review.py       段階 3: 採点 (--brief / --examples)
+scripts/vlm/make_review_video.py      判定を元映像に重ねたレビュー用 MP4
 tests/test_vlm_causality.py       因果性の試験 24 件
 tests/test_vlm_adapters.py        モダリティとメタデータの試験 9 件
 tests/test_vlm_overlay.py         字幕の試験 13 件
@@ -718,28 +718,28 @@ Mac から解決した lock を持ち込むと合わないビルドに固定さ�
 
 ```bash
 # 段階 0 (Mac): onset 付与の様式を作る
-uv run python scripts/make_onset_template.py
+uv run python scripts/vlm/make_onset_template.py
 sh out/chunk1/vlm/convert_segments.sh      # 該当セグメントを mp4 に変換
 #   -> out/chunk1/vlm/labels_onset.md を人手で記入
-uv run python scripts/import_onset_sheet.py
+uv run python scripts/vlm/import_onset_sheet.py
 
 # 段階 1 (Mac / EC2): 入力を作る
-uv run python scripts/build_vlm_inputs.py            # Mac
-uv run python scripts/build_vlm_inputs.py --hwaccel  # EC2 (NVDEC で CPU を空ける)
+uv run python scripts/vlm/build_vlm_inputs.py            # Mac
+uv run python scripts/vlm/build_vlm_inputs.py --hwaccel  # EC2 (NVDEC で CPU を空ける)
 
 # 経路の確認 (GPU 不要)
-uv run python scripts/run_vlm_review.py --model echo --mode a --limit 4
+uv run python scripts/vlm/run_vlm_review.py --model echo --mode a --limit 4
 
 # 段階 2 (EC2)
 uv pip install vllm          # その機械で解決する
-uv run python scripts/run_vlm_review.py --model qwen2_5_vl_7b   --mode a
-uv run python scripts/run_vlm_review.py --model qwen2_5_vl_7b   --mode b
-uv run python scripts/run_vlm_review.py --model cosmos_reason1_7b --mode b
-uv run python scripts/run_vlm_review.py --model qwen3_vl_8b     --mode b
-uv run python scripts/run_vlm_review.py --model qwen3_vl_30b_a3b --mode b
+uv run python scripts/vlm/run_vlm_review.py --model qwen2_5_vl_7b   --mode a
+uv run python scripts/vlm/run_vlm_review.py --model qwen2_5_vl_7b   --mode b
+uv run python scripts/vlm/run_vlm_review.py --model cosmos_reason1_7b --mode b
+uv run python scripts/vlm/run_vlm_review.py --model qwen3_vl_8b     --mode b
+uv run python scripts/vlm/run_vlm_review.py --model qwen3_vl_30b_a3b --mode b
 
 # 段階 3 (Mac)
-uv run python scripts/score_vlm_review.py --results out/chunk1/vlm/results_*.jsonl
+uv run python scripts/vlm/score_vlm_review.py --results out/chunk1/vlm/results_*.jsonl
 ```
 
 途中で落ちても、書き終えた `request_id` は飛ばして続きから流せる。
@@ -751,13 +751,13 @@ EC2 の結果ファイルを外へ出せない場合、**採点も EC2 側で完
 
 ```bash
 # 数値の要約。これだけを手で運ぶ (約 30 行 / モデル)
-uv run python scripts/score_vlm_review.py --results out/chunk1/vlm/results_*.jsonl --brief
+uv run python scripts/vlm/score_vlm_review.py --results out/chunk1/vlm/results_*.jsonl --brief
 
 # 失敗事例の説明文。**持ち出さず現地で読む**
-uv run python scripts/score_vlm_review.py --results ... --examples 5
+uv run python scripts/vlm/score_vlm_review.py --results ... --examples 5
 
 # 判定の推移を映像で見る (現地で再生)
-uv run python scripts/make_review_video.py --results ..._mode_b.jsonl --events P01,P05,P08
+uv run python scripts/vlm/make_review_video.py --results ..._mode_b.jsonl --events P01,P05,P08
 ```
 
 digest は**割合ではなく件数 (TP/FN/FP/TN) で持つ**。件数があれば κ も再現率も
@@ -774,7 +774,7 @@ comma2k19 の必要セグメントは 188 本中 **40 本**（うち手元にあ
 `video.hevc` と `processed_log/` だけなら **1.63 GB**。全チャンク 9.0 GB を運ぶ必要はない。
 
 ```bash
-uv run python scripts/list_required_segments.py    # 一覧と配置の点検
+uv run python scripts/fetch/list_required_segments.py    # 一覧と配置の点検
 ```
 
 

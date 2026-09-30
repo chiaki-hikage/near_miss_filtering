@@ -27,7 +27,7 @@ smoothing:
 #   Highlander TSS2 は 33 台中 21 台、Corolla TSS2 は 253 台中 2 台、RAV4 TSS2 は 0 台。
 #   ax と ay は必ず一緒に反転した。実装と経緯は src/near_miss/sign_calibration.py。
 #
-#   判定は scripts/calibrate_accel_sign.py が行い、結果の符号表を車種設定の
+#   判定は scripts/validate/calibrate_accel_sign.py が行い、結果の符号表を車種設定の
 #   calibration.accel_sign から読む。ここに置くのは判定の条件だけ。
 # ---------------------------------------------------------------------------
 accel_sign:

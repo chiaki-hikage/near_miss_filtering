@@ -1,12 +1,12 @@
 # TOYOTA_HIGHLANDER_TSS2 (commaCarSegments)
 #
 # **信号定義は toyota_rav4_tss2.yaml の写しで、この車種では未検証。**
-# scripts/make_borrowed_vehicle_config.py で機械的に作った。
+# scripts/validate/make_borrowed_vehicle_config.py で機械的に作った。
 #
 # アドレスが同じでもビットの意味が同じとは限らない。特に 0x226 (ABSACT / VSCACT) と
 # 0x3B7 (SLIP_WARN) は opendbc に無く、toyota_rav4_tss2 の実データから解析したもの。
 # validated はすべて false に落としてある (元は true が 6 件)。
-# scripts/validate_slip_flags.py の結果で 1 つずつ戻すこと。
+# scripts/validate/validate_slip_flags.py の結果で 1 つずつ戻すこと。
 #
 # 収録車両の VIN 製造者コード (先頭 60 セグメント): 5TD x60
 
@@ -31,7 +31,7 @@ geometry:
 
 
 # 加速度センサ (accel_x / accel_y) の向きは車両ごとに違う。
-# scripts/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
+# scripts/validate/calibrate_accel_sign.py で車両ごとに判定した符号を、読み出し直後に掛ける
 # (src/near_miss/sign_calibration.py)。判定できなかった車両・表に無い車両は
 # 加速度チャネルを使わない。表を作り直すと config_hash も変わる。
 calibration:

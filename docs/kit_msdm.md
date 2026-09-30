@@ -114,11 +114,11 @@ Correvit → 後軸 [0.958, -0.159, 0] m、後軸 → 重心 [1.437, 0, 0] m
 
 ### 1 走行を時系列で見る
 
-`scripts/plot_kit_run.py <走行名>` で、同じ時間軸に
+`scripts/review/plot_kit_run.py <走行名>` で、同じ時間軸に
 β / 車速 / ヨーレート / 横加速度 / 実効操舵角 / タイロッド力を縦に並べる。
 
 ```
-python scripts/plot_kit_run.py dynamic_driving_cobble_1
+python scripts/review/plot_kit_run.py dynamic_driving_cobble_1
 ```
 
 `out/kit_msdm/dynamic_driving_cobble_1.png` は敷石 (μ=0.7) の 43.6 秒で、
@@ -143,7 +143,7 @@ python scripts/plot_kit_run.py dynamic_driving_cobble_1
 
 ## 4. 検証結果
 
-`scripts/validate_sideslip_kit.py` の出力。
+`scripts/validate/validate_sideslip_kit.py` の出力。
 
 ### A. 符号の取り決めは一致している
 
@@ -370,7 +370,7 @@ commaCarSegments の RAV4 TSS2 には**大きな横滑りは入っていない**
 
 このデータセットはそこでも**物差し**として使っている。dynamic run 13 本を
 抽出側とまったく同じ経路に通し、実測 β を答え合わせだけに使って再現率を測る
-(`scripts/validate_sideslip_filter.py`)。結果は 13/13 の走行が候補を出し、
+(`scripts/validate/validate_sideslip_filter.py`)。結果は 13/13 の走行が候補を出し、
 実測 `|β| ≥ 5°` の 192.7 秒を **100%** 覆った。
 
 この物差しは設計そのものも変えた。当初 2 次フィルタは「横力 ∧ 舵で説明できない

@@ -1,7 +1,7 @@
 """横滑り 2 段フィルタの単体試験。
 
 合成信号で「通るべきものが通り、落ちるべきものが落ちる」ことを確かめる。
-実データでの再現率は scripts/validate_sideslip_filter.py が KIT MSDM で測る。
+実データでの再現率は scripts/validate/validate_sideslip_filter.py が KIT MSDM で測る。
 """
 
 from __future__ import annotations

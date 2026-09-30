@@ -487,7 +487,7 @@ comma2k19 では最大減速度が 0.45 g で、タイヤ限界 (乾燥路 0.8�
 
 `abs_active` の定義自体は残してあるが、**現時点で検証されていない**。
 降雨・降雪路やより強い制動を含むデータが要る。
-`scripts/screen_segments.py` は、この信号を復号できたセグメントの割合と最大値を
+`scripts/detect/screen_segments.py` は、この信号を復号できたセグメントの割合と最大値を
 必ず出すので、規模を上げても 0 のままかどうかは結果に残る。
 
 ### 純正 AEB (PCS)
@@ -605,12 +605,12 @@ TSS2 では `PRE_COLLISION` (0x283, バス 2) の `PRECOLLISION_ACTIVE` を復�
 
 ## 9. 確認と較正の進め方
 
-`scripts/make_review_list.py` が確認シート (`review.md` / `review.csv`) を出す。
+`scripts/review/make_review_list.py` が確認シート (`review.md` / `review.csv`) を出す。
 セグメント内の相対秒とフレーム番号、映像の場所が入っているので、そのまま
 頭出しできる。判定欄に **ヒヤリハット / 通常運転 / 判断不能** を記入したものを
 正解として閾値を較正する。
 
-`scripts/plot_segment.py` は 1 セグメントの時系列を出す。検出に使う特徴量は
+`scripts/review/plot_segment.py` は 1 セグメントの時系列を出す。検出に使う特徴量は
 すべてパネルとして選べ、閾値・発火区間・ゲートで判定対象外になった区間を重ねる。
 候補が出なかった理由が、閾値未達なのか対象外だったのかを切り分けられる。
 

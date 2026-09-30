@@ -103,7 +103,7 @@
 
 ## 3. L1 の出力
 
-### 3.1 `scripts/l1_apply_ccs.py` → `out/<name>/`
+### 3.1 `scripts/l1/l1_apply_ccs.py` → `out/<name>/`
 
 | ファイル | 内容 |
 |---|---|
@@ -127,7 +127,7 @@
 **`n_steady` は通過率を下げる処理ではない。** 「後段の decode / イベント判定を
 省略できる走行時間」を別指標として数えたもの。
 
-### 3.2 `scripts/l1_l3_chain.py` → `out/<name>/`
+### 3.2 `scripts/l1/l1_l3_chain.py` → `out/<name>/`
 
 | ファイル | 内容 |
 |---|---|
@@ -210,7 +210,7 @@
 
 ## 5. 優先度フィルタの出力
 
-`scripts/filter_priority.py` が候補表に 2 列を足す。
+`scripts/detect/filter_priority.py` が候補表に 2 列を足す。
 
 | 列 | 意味 |
 |---|---|
@@ -219,7 +219,7 @@
 
 **候補生成は変えない。** 既存の列はそのまま残る。
 
-`scripts/report_final.py` / `report_chain.py` はさらに段ごとのフラグを足す。
+`scripts/report/report_final.py` / `report_chain.py` はさらに段ごとのフラグを足す。
 
 | 列 | 意味 |
 |---|---|
@@ -315,7 +315,7 @@ labels.csv の 1 行
 
 ### 6.6 採点結果
 
-`scripts/score_vlm_review.py` が結果 JSONL と `labels.csv` を `event_id` で
+`scripts/vlm/score_vlm_review.py` が結果 JSONL と `labels.csv` を `event_id` で
 突き合わせ、指標と digest を出す。
 
 * negative (24 件) は **clip / episode 単位**を主指標にする

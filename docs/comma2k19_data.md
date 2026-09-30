@@ -99,7 +99,7 @@ comma2k19 の RAV4 でも同じ位置にあることを確かめて復号対象�
 commaCarSegments には `processed_log` が無く、車速・舵角・輪速も生 CAN から作る。
 その経路が正しいことを確かめるため、comma2k19 側でも同じ定義で復号し直した値を
 別チャネル名 (`*_can_*`) で持ち、配布値と比べている
-(`scripts/check_signal_parity.py`)。
+(`scripts/validate/check_signal_parity.py`)。
 
 | 主系列 | 生 CAN から復号 | 傾き | rmse |
 |---|---|---|---|

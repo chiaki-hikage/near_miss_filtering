@@ -126,10 +126,10 @@ tests/                        単体試験
 uv sync --extra viz --extra dev
 
 # 環境が整っているかを確認する
-uv run python scripts/check_env.py --data
+uv run python scripts/validate/check_env.py --data
 
 # capnp スキーマを取る (commaCarSegments を使う場合、最初の一度だけ)
-uv run python scripts/fetch_cereal_schema.py
+uv run python scripts/fetch/fetch_cereal_schema.py
 ```
 
 環境構築の詳細は [docs/environment.md](docs/environment.md)。
@@ -141,14 +141,14 @@ uv run python scripts/fetch_cereal_schema.py
 
 ```bash
 # 車種の一覧とセグメント数
-uv run python scripts/fetch_car_segments.py --list
+uv run python scripts/fetch/fetch_car_segments.py --list
 
 # 取得量の確認 → 取得
-uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
-uv run python scripts/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
+uv run python scripts/fetch/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5 --dry-run
+uv run python scripts/fetch/fetch_car_segments.py TOYOTA_RAV4_TSS2 --routes 3 --per-route 5
 
 # comma2k19 を小さく試す (64 セグメント / 382 MB、映像なし)
-uv run python scripts/fetch_demo_dataset.py --out data/comma2k19_demo
+uv run python scripts/fetch/fetch_demo_dataset.py --out data/comma2k19_demo
 ```
 
 S3 経由で取り込む場合は `fetch_from_s3.py` / `upload_to_s3.py`。
@@ -158,18 +158,18 @@ S3 経由で取り込む場合は `fetch_from_s3.py` / `upload_to_s3.py`。
 
 ```bash
 # L3 まで (comma2k19)
-uv run python scripts/run_detection.py raw_data/Chunk_1 --out out/chunk1
+uv run python scripts/detect/run_detection.py raw_data/Chunk_1 --out out/chunk1
 
 # L3 まで (commaCarSegments を数千セグメント。取得と処理を重ねて流す)
-uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 2000 --dry-run
-uv run python scripts/screen_segments.py TOYOTA_RAV4_TSS2 --limit 2000 --out out/screen --resume
+uv run python scripts/detect/screen_segments.py TOYOTA_RAV4_TSS2 --limit 2000 --dry-run
+uv run python scripts/detect/screen_segments.py TOYOTA_RAV4_TSS2 --limit 2000 --out out/screen --resume
 
 # L1 を当てて段ごとの残存を見る
-uv run python scripts/l1_l3_chain.py ccs --platform TOYOTA_RAV4_TSS2 \
+uv run python scripts/l1/l1_l3_chain.py ccs --platform TOYOTA_RAV4_TSS2 \
     --screen "out/screen_{platform}_2k_v4" --out out/l1_l3/ccs
 
 # 優先度で絞る
-uv run python scripts/filter_priority.py out/chunk1/candidates.csv --out out/priority.csv
+uv run python scripts/detect/filter_priority.py out/chunk1/candidates.csv --out out/priority.csv
 
 # 横滑り 2 段フィルタを 1 コマンドで動かす (30 セグメント / 約 30 秒)
 ./scripts/demo_sideslip.sh
@@ -178,29 +178,29 @@ uv run python scripts/filter_priority.py out/chunk1/candidates.csv --out out/pri
 ### VLM 判定
 
 ```bash
-uv run python scripts/build_vlm_inputs.py ...   # GPU 不要。リクエスト JSONL を作る
-uv run python scripts/run_vlm_review.py ...     # GPU が要る (--backend echo なら不要)
-uv run python scripts/score_vlm_review.py ...   # GPU 不要。人手ラベルと突き合わせる
+uv run python scripts/vlm/build_vlm_inputs.py ...   # GPU 不要。リクエスト JSONL を作る
+uv run python scripts/vlm/run_vlm_review.py ...     # GPU が要る (--backend echo なら不要)
+uv run python scripts/vlm/score_vlm_review.py ...   # GPU 不要。人手ラベルと突き合わせる
 ```
 
 ### 確認・検証
 
 ```bash
 # 動画確認用のシートを作る
-uv run python scripts/make_review_list.py out/chunk1 raw_data/Chunk_1 --top 30
+uv run python scripts/review/make_review_list.py out/chunk1 raw_data/Chunk_1 --top 30
 
 # 1 セグメントの時系列を見る
-uv run python scripts/plot_segment.py raw_data/Chunk_1 -s "b0c9d2329ad1606b|2018-08-17--14-55-39/1"
-uv run python scripts/plot_segment.py --list-panels
+uv run python scripts/review/plot_segment.py raw_data/Chunk_1 -s "b0c9d2329ad1606b|2018-08-17--14-55-39/1"
+uv run python scripts/review/plot_segment.py --list-panels
 
 # 候補が 0 件のときの切り分け
-uv run python scripts/inspect_segment.py raw_data/Chunk_1 --index 40 --dump-csv out/ts.csv
+uv run python scripts/review/inspect_segment.py raw_data/Chunk_1 --index 40 --dump-csv out/ts.csv
 
 # 車種設定の前提が崩れていないか確かめる (新しいデータを扱う前に必ず)
-uv run python scripts/validate_signals.py raw_data/Chunk_1 --max-segments 5
+uv run python scripts/validate/validate_signals.py raw_data/Chunk_1 --max-segments 5
 
 # イベント判定条件の一覧を設定から書き出す
-uv run python scripts/dump_event_rules.py --markdown
+uv run python scripts/report/dump_event_rules.py --markdown
 
 # 試験
 uv run pytest -q

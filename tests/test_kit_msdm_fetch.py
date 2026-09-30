@@ -18,14 +18,14 @@ import pytest
 from near_miss.io import kit_msdm as kit
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT = REPO / "scripts" / "fetch_kit_msdm.py"
+SCRIPT = REPO / "scripts" / "fetch" / "fetch_kit_msdm.py"
 
 
 def _load_script():
     """スクリプトを import せずに関数だけ取り出す (import 時に副作用を出さないため)。"""
     import importlib.util
 
-    sys.path.insert(0, str(REPO / "scripts"))
+    sys.path.insert(0, str(REPO / "scripts" / "fetch"))
     spec = importlib.util.spec_from_file_location("fetch_kit_msdm", SCRIPT)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
