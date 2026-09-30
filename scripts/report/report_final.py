@@ -22,12 +22,7 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 
-import numpy as np
-import pandas as pd
-
-from l1_search_by_target import build, cond_of
-from l1_eval_window_size import Eval, prepare
-from report_pipeline import L1
+from _stages import L1, Eval, l1_condition, l1_windows, load_candidates, load_events
 from search_priority import base
 
 # 優先度条件。search_priority.py の探索で precision 40% 級だったもの。
@@ -58,15 +53,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    W = prepare(pd.read_csv(args.windows, low_memory=False))
-    w = build(W[W.win_s == args.win].reset_index(drop=True))
-    cond = cond_of(w, L1) & ~(w.safety_flag > 0.5).to_numpy()
+    w = l1_windows(args.windows, args.win)
+    cond = l1_condition(w)
 
-    ca = pd.read_csv(args.candidates, low_memory=False).dropna(subset=["segment"])
-    ca["segment"] = ca.segment.astype(int)
-    ev = pd.read_csv(args.events, low_memory=False).dropna(subset=["segment"])
-    ev["segment"] = ev.segment.astype(int)
-    ev["duration_s"] = ev.t_end - ev.t_start
+    ca = load_candidates(args.candidates)
+    ev = load_events(args.events)
 
     # --- L1 ---
     r_ca = Eval(w, ca, args.win, args.margin)(cond)

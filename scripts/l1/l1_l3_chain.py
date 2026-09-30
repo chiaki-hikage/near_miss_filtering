@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -37,6 +36,7 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
+from _stages import match_labels
 from filter_priority import apply_rules
 from near_miss import l1 as L1
 from near_miss.config import (
@@ -237,13 +237,8 @@ def main() -> int:
     if args.labels:
         lab = pd.concat([pd.read_csv(p) for p in args.labels], ignore_index=True)
         lab["risky"] = lab.risky.astype(bool)
-        risky = []
-        for x in ca.itertuples():
-            m = ((lab.drive_id == x.drive_id) & (lab.t_end >= x.t_start)
-                 & (lab.t_start <= x.t_end))
-            risky.append(bool(lab[m].risky.any()) if m.any() else None)
+        risky, ca["labeled"] = match_labels(ca, lab)
         ca["risky"] = risky
-        ca["labeled"] = [v is not None for v in risky]
 
     stages = [("L3 候補 (merge 後)", pd.Series(True, index=ca.index)),
               ("  + severity > 0", ca.sev_ok),

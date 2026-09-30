@@ -25,18 +25,7 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
-from l1_search_by_target import build, cond_of
-from l1_eval_window_size import Eval, prepare
-
-# 探索で決めた L1 の棄却条件。**ここを固定して通しで測る。**
-# すべて窓内の min/max/range だけで作れる。
-L1 = {
-    "brake_press_max": 0.2,     # 制動の強さ [MPa 等]
-    "gas_range": 5.0,           # アクセル開度の変化 [%]
-    "steer_range": 5.0,         # 舵角の変化 [deg]
-    "steer_rate_absmax": 60.0,  # 舵角レート [deg/s]
-    "ax_absmax": 1.6,           # 前後加速度 [m/s^2]
-}
+from _stages import L1, Eval, l1_condition, l1_windows, load_candidates, load_events
 
 # 種別の並び。回避反応 / 前方接近 / 安全系 の順に見せる。
 ORDER = [
@@ -71,16 +60,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    W = prepare(pd.read_csv(args.windows, low_memory=False))
-    w = build(W[W.win_s == args.win].reset_index(drop=True))
+    w = l1_windows(args.windows, args.win)
     over = (w.safety_flag > 0.5).to_numpy()
-    cond = cond_of(w, L1) & ~over
+    cond = l1_condition(w)
 
-    ev = pd.read_csv(args.events, low_memory=False).dropna(subset=["segment"])
-    ev["segment"] = ev.segment.astype(int)
-    ev["duration_s"] = ev.t_end - ev.t_start
-    ca = pd.read_csv(args.candidates, low_memory=False).dropna(subset=["segment"])
-    ca["segment"] = ca.segment.astype(int)
+    ev = load_events(args.events)
+    ca = load_candidates(args.candidates)
 
     total_h = w.dur_s.sum() / 3600
     E_ev = Eval(w, ev, args.win, args.margin)

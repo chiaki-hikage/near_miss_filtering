@@ -20,11 +20,9 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
-from l1_search_by_target import build, cond_of
-from l1_eval_window_size import Eval, prepare
+from _stages import Eval, l1_condition, l1_windows, load_candidates, match_labels
 from filter_priority import apply_rules
 from near_miss.config import load_yaml
-from report_pipeline import L1
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,15 +43,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    ca = pd.read_csv(args.candidates, low_memory=False).dropna(subset=["segment"])
-    ca["segment"] = ca.segment.astype(int)
+    ca = load_candidates(args.candidates)
     total_h = np.nan
 
     ca["L1"] = True
     if args.windows:
-        W = build(prepare(pd.read_csv(args.windows, low_memory=False)))
-        w = W[W.win_s == args.win].reset_index(drop=True)
-        cond = cond_of(w, L1) & ~(w.safety_flag > 0.5).to_numpy()
+        w = l1_windows(args.windows, args.win)
+        cond = l1_condition(w)
         r = Eval(w, ca, args.win, args.margin)(cond)
         ca = r["_ev"].copy()
         ca["L1"] = r["_alive"]
@@ -69,14 +65,8 @@ def main() -> int:
     if args.labels:
         lab = pd.read_csv(args.labels)
         if "risky" in lab.columns:
-            # 区間の重なりで突き合わせる。t_start は設定が変わると動くため。
-            risky = []
-            for _, x in ca.iterrows():
-                m = ((lab.drive_id == x.drive_id)
-                     & (lab.t_end >= x.t_start) & (lab.t_start <= x.t_end))
-                risky.append(bool(lab[m].risky.any()) if m.any() else None)
+            risky, ca["labeled"] = match_labels(ca, lab)
             ca["risky"] = risky
-            ca["labeled"] = [v is not None for v in risky]
 
     stages = [("L3 候補", pd.Series(True, index=ca.index)),
               ("  + severity>0", ca.sev_ok),
