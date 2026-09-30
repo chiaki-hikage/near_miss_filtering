@@ -12,7 +12,7 @@ I/O や展開の時間は見ない。見るのは 2 つだけ。
 `t_in_segment_s` と `duration_s` で窓に割り当て、**跨る窓はすべて必要**とする。
 `--margin` 窓ぶん前後を残す (既定 1)。イベントは境界を跨ぐため。
 
-  uv run python scripts/l1/eval_l1_windows.py \
+  uv run python scripts/l1/l1_eval_window_size.py \
       --windows out/window_stats_ccs_TOYOTA_RAV4_TSS2.csv \
       --candidates out/screen_rav4_tss2_2k/candidates.csv --sweep
 """

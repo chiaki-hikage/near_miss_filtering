@@ -14,7 +14,7 @@
 
 **安全系フラグが立った窓は override として必ず残す。** 条件探索の対象外。
 
-  uv run python scripts/l1/eval_l1_target.py \
+  uv run python scripts/l1/l1_search_by_target.py \
       --windows out/window_stats_ccs_TOYOTA_RAV4_TSS2.csv \
       --candidates out/screen_rav4_tss2_2k/candidates.csv --search
 """
@@ -30,7 +30,7 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
-from eval_l1_windows import Eval, prepare
+from l1_eval_window_size import Eval, prepare
 
 FORWARD = ("cut_in_candidate", "short_thw", "low_ttc", "closing_fast")
 SAFETY_COLS = ("abs_active_flag_max", "vsc_active_flag_max", "slip_warn_max",

@@ -11,7 +11,7 @@ summarize_features.py が出した**生チャネルの要約統計**と、既存
 変わるため、棄却は「連続して失格した run」に限り、前後 margin セグメントを
 必ず残す (既定 1)。
 
-  uv run python scripts/l1/eval_l1.py \
+  uv run python scripts/l1/l1_eval_segment_reduction.py \
       --stats out/feature_stats_ccs_TOYOTA_RAV4_TSS2.csv \
       --candidates out/screen_rav4_tss2_2k/candidates.csv
 """

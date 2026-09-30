@@ -25,8 +25,8 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
-from eval_l1_target import build, cond_of
-from eval_l1_windows import Eval, prepare
+from l1_search_by_target import build, cond_of
+from l1_eval_window_size import Eval, prepare
 
 # 探索で決めた L1 の棄却条件。**ここを固定して通しで測る。**
 # すべて窓内の min/max/range だけで作れる。

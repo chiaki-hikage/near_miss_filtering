@@ -16,7 +16,7 @@
     commaCarSegments gas_released / brake_pressed / brake_mc_mpa
                      / steer_deg / steer_rate_can_dps / steer_torque_driver
 
-  uv run python scripts/l1/eval_l1_noinput.py \
+  uv run python scripts/l1/l1_eval_no_driver_input.py \
       --windows out/window_stats_ccs_TOYOTA_RAV4_TSS2.csv \
       --candidates out/screen_rav4_tss2_2k/candidates.csv --sweep
 """
@@ -32,7 +32,7 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
-from eval_l1_windows import Eval, prepare  # 窓の下ごしらえと保持判定は共通
+from l1_eval_window_size import Eval, prepare  # 窓の下ごしらえと保持判定は共通
 
 # 「操作あり」とみなす下限。既定は控えめ (= 落としにくい) 側に置く。
 DEFAULT = {
