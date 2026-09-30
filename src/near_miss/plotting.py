@@ -17,7 +17,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 # 上から順に探して、最初に見つかったものを使う。
-# 同じ図を Mac と Linux で描いたときに字形は変わるが、値は変わらない。
+# 実行環境によって字形は変わるが、描画される値は変わらない。
 FONT_CANDIDATES: tuple[str, ...] = (
     # macOS
     "Hiragino Sans",
@@ -79,7 +79,7 @@ def configure_japanese_font(verbose: bool = False) -> str | None:
 
 
 def use_headless_backend() -> None:
-    """画面の無い環境 (EC2 など) でも描けるようにする。
+    """画面の無い環境でも描けるようにする。
 
     matplotlib は既定で GUI バックエンドを選ぼうとするため、
     DISPLAY の無い Linux では import の時点で失敗することがある。

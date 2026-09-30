@@ -3,7 +3,7 @@
 # 既存の抽出ロジック (detectors / scoring / sideslip / features) は変更しない。
 # ここは candidates.csv と labels.csv を入力とする独立した後段レイヤの設定。
 #
-# Phase 1 は探索的 PoC。人手確認済みの 32 件 (positive 8 / negative 24) だけを使う。
+# 人手確認済みの 32 件 (positive 8 / negative 24) だけを使う。
 # 「フィルタで落ちた = negative」とは扱わない。negative は人手確認済みに限る。
 #
 # モデルを差し替えても入力生成・prompt・schema・評価は変えない。

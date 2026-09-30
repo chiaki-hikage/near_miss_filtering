@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""VLM の判定を人手ラベルと突き合わせて採点する (Phase 1)。
+"""VLM の判定を人手ラベルと突き合わせて採点する。
 
-GPU は要らない。EC2 で推論した結果 (JSONL) を持ち帰って Mac で回せる。
+GPU は要らない。推論機で出した結果 (JSONL) を手元に移して実行できる。
 
-Phase 1 は**探索的 PoC** であり、性能の確定はしない。
+標本が小さいため、性能の確定はしない。
   - 指標は必ず件数を併記する。百分率だけを出さない
   - 信頼区間は参考値として出す。結論の根拠にしない
   - negative は clip / episode 単位を主指標にする。約 900 時刻を
@@ -307,7 +307,7 @@ def score_positive(series, onset: pd.DataFrame, cfg, out: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 def gates(a: pd.DataFrame, neg: pd.DataFrame, pos: pd.DataFrame, cfg) -> None:
     print("\n" + "=" * 74)
-    print("Phase 1 のゲート条件")
+    print("採否のゲート条件")
     print("=" * 74)
     print("  これは**探索的な最低条件**であって性能目標ではない。")
     print("  positive 8 件 / negative 24 件では性能を確定できない。")
@@ -359,7 +359,7 @@ def brief(res: pd.DataFrame, a: pd.DataFrame, neg: pd.DataFrame,
     L: list[str] = []
     ch = sorted(map(str, res.config_hash.dropna().unique())) if "config_hash" in res else []
     pv = sorted(map(str, res.prompt_version.dropna().unique())) if "prompt_version" in res else []
-    L.append("=== VLM PoC Phase1 digest ===")
+    L.append("=== VLM review digest ===")
     L.append(f"config_hash={','.join(ch) or '-'} prompt={','.join(pv) or cfg['prompt_version']} "
              f"guard={cfg['context']['guard_s']} stride={cfg['timeline']['stride_s']} "
              f"debounce={cfg['alarm']['debounce_steps']}")

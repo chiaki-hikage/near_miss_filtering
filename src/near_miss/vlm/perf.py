@@ -43,7 +43,7 @@ MB = 1024.0 * 1024.0
 def _nvml():
     """NVML のハンドル。取れなければ None。
 
-    vllm は nvidia-ml-py に依存しているので、EC2 側では大抵入っている。
+    vllm は nvidia-ml-py に依存しているので、推論機には大抵入っている。
     無ければ nvidia-smi の呼び出しに落とす。
     """
     try:
@@ -73,7 +73,7 @@ def _smi(query: str) -> list[list[str]] | None:
 class Gpu:
     """GPU の情報と使用量。NVML があればそれを、無ければ nvidia-smi を使う。
 
-    どちらも無い機械 (Mac) では ``ok`` が False になり、時間の計測だけが残る。
+    どちらも無い機械では ``ok`` が False になり、時間の計測だけが残る。
     """
 
     def __init__(self) -> None:
@@ -144,7 +144,7 @@ class Gpu:
 class Host:
     """CPU 使用率と RAM 使用量。
 
-    ``psutil`` があればそれを使う (vllm が依存しているので EC2 側では入っている)。
+    ``psutil`` があればそれを使う (vllm が依存しているので推論機には入っている)。
     無ければ Linux の ``/proc`` を直接読む。**top を 0.2 秒ごとに起動はしない。**
     top が出す値と同じもの (/proc/stat の差分、/proc/meminfo) を直接読んでいる。
 

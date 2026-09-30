@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""オンライン評価用の onset 時刻を人手で付けるための様式を作る (Phase 1 段階 0)。
+"""オンライン評価用の onset 時刻を人手で付けるための様式を作る (VLM 手順 0)。
 
-Phase 1 は人手確認済みの 32 件だけを使う。うち risky=True の 8 件について、
+対象は人手確認済みの 32 件だけを使う。うち risky=True の 8 件について、
 「いつ危険が立ち上がったか」を人が付ける。オンライン判定の主指標
 
     delta_onset = t_alarm - t_onset_human
@@ -183,7 +183,7 @@ def main() -> int:
 def _write_sheet(path: Path, df: pd.DataFrame, cfg: dict, data_root: Path) -> None:
     tl = cfg["timeline"]
     lines = [
-        "# オンライン評価用 onset 時刻の付与シート (Phase 1)",
+        "# オンライン評価用 onset 時刻の付与シート ",
         "",
         f"対象: 人手確認済み risky=True の {len(df)} 件。",
         "",

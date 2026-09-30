@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""記入済みの onset シート (Markdown) を取り込んで検証する (Phase 1 段階 0)。
+"""記入済みの onset シート (Markdown) を取り込んで検証する (VLM 手順 0)。
 
 labels_onset.md の各イベントの表に書かれた
 

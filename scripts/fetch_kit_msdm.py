@@ -14,7 +14,7 @@
   # 3) 既に展開してあるものを照合するだけ
   python scripts/fetch_kit_msdm.py --verify-only
 
-閉鎖 EC2 では 1) を使い、tar は S3 経由で持ち込む (docs/environment.md §4.6)。
+外部へ出られない環境では 1) を使い、tar は別経路で持ち込む。
 
 安全のために:
   * 取得前に**接続先ホストを表示して確認を取る** (-y で省略)

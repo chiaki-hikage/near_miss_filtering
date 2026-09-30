@@ -138,7 +138,7 @@ class QwenVLAdapter:
 class EchoAdapter:
     """vLLM を使わない試験用。prompt の組み立てと入出力の経路だけ確かめる。
 
-    GPU の無い機械 (Mac) で全経路を通せるようにするためにある。
+    GPU の無い機械で全経路を通せるようにするためにある。
     **推論ではない。**
     """
 

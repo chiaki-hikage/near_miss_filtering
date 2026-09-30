@@ -3,7 +3,7 @@
 モデル間で共通。差し替えてよいのは重みと chat template だけで、
 schema と prompt は固定する。そうしないと比較が成立しない。
 
-pydantic に依存しない。ここは GPU の要らない経路 (Mac 側) でも動かすため、
+pydantic に依存しない。ここは GPU の要らない経路でも動かすため、
 新しい依存を持ち込まない。返すのは素の JSON Schema の dict で、
 vLLM の構造化出力 (StructuredOutputsParams(json=...)) にそのまま渡せる。
 """
@@ -40,7 +40,7 @@ HAZARD_TYPES = (
     "none",
 )
 
-# 判定の根拠がどちらにあるか。**これが PoC の中心指標**。
+# 判定の根拠がどちらにあるか。**これが中心指標**。
 # 映像を足した意味があったかを直接測る。
 EVIDENCE = ("video", "can", "both", "neither")
 
@@ -110,7 +110,7 @@ def validate(obj: Any, mode: str) -> list[str]:
     """schema 違反を並べて返す。空なら適合。
 
     構造化出力が効いていれば違反は出ないはずだが、**効いていることを
-    確かめずに信用しない**。適合率は Phase 1 のゲート条件 1 になっている。
+    確かめずに信用しない**。適合率は 採否のゲート条件 1 になっている。
     """
     schema = build_schema(mode)
     errs: list[str] = []

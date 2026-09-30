@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""リクエスト JSONL を VLM に流して結果 JSONL を書く (Phase 1 段階 2 以降)。
+"""リクエスト JSONL を VLM に流して結果 JSONL を書く (VLM 手順 2)。
 
-**GPU が要る (EC2)。** ただし --backend echo なら GPU 無しで全経路を通せるので、
-Mac でプロンプト組み立てと入出力の確認ができる。
+**GPU が要る。** ただし --backend echo なら GPU 無しで全経路を通せるので、
+プロンプト組み立てと入出力の確認だけは GPU の無い機械でもできる。
 
 モデルを差し替えても入力生成・prompt・schema・評価は変わらない。
 変わるのは重み・chat template・視覚トークン化だけ (adapters.py が吸収)。

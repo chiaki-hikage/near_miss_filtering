@@ -7,7 +7,7 @@
 命名はセグメント内の絶対フレーム番号にする (f00374.jpg = フレーム 374)。
 ffmpeg の -start_number で採番をずらすと 1 ずれても気づけないので、
 オフセットを持ち込まない。1 セグメント 1200 枚・約 50 MB で、
-Phase 1 の全エピソードでも 2 GB 程度にしかならない。
+全エピソードでも 2 GB 程度にしかならない。
 
 生の video.hevc はタイムスタンプを持たない (ffprobe が幅も高さも返さない)。
 setpts で 20 Hz を打ち直さないと、フレーム番号と秒の対応が崩れる。
@@ -54,8 +54,8 @@ def extract_cmd(video: Path, out_dir: Path, cfg: dict[str, Any],
                 hwaccel: bool = False) -> list[str]:
     """1 セグメントを丸ごと JPEG に展開する ffmpeg コマンドを組む。
 
-    hwaccel=True で NVDEC を使う。g7e は 8 vCPU しかないので、EC2 では
-    デコードを GPU へ逃がして CPU を空けたい。使えるビルドかは実行側で確かめる。
+    hwaccel=True で NVDEC を使う。推論機は vCPU が少ないことが多く、デコードを
+    GPU へ逃がして CPU を空けたい。使えるビルドかは実行側で確かめる。
     """
     fps = float(cfg["video"]["fps"])
     long_edge = int(cfg["input"]["video_long_edge"])

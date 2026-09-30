@@ -47,7 +47,7 @@ class SegPos:
 class Episode:
     """評価の単位。labels.csv の 1 行に対応する。
 
-    Phase 1 では人手確認済みの 32 件だけを扱う。risky は人手判定であって
+    現在は人手確認済みの 32 件だけを扱う。risky は人手判定であって
     フィルタの出力ではない。「フィルタで落ちた = negative」とは扱わない。
     """
 
