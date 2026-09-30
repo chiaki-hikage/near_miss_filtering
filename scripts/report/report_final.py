@@ -22,7 +22,7 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 
-from _stages import L1, Eval, l1_condition, l1_windows, load_candidates, load_events
+from _stages import WINDOW_STATS_L1_RULE, Eval, l1_condition, l1_windows, load_candidates, load_events
 from search_priority import base
 
 # 優先度条件。search_priority.py の探索で precision 40% 級だったもの。
@@ -90,7 +90,7 @@ def main() -> int:
                 ev.at[i, "PRI"] = True
 
     print("=" * 74)
-    print(f"L1: {'  '.join(f'{k}<{v:g}' for k, v in L1.items())}")
+    print(f"L1: {'  '.join(f'{k}<{v:g}' for k, v in WINDOW_STATS_L1_RULE.items())}")
     print(f"    + 安全系フラグ override / 窓 {args.win:g} s / 前後 {args.margin} 窓保持")
     print(f"優先度 ({args.priority}): {desc}")
     print("=" * 74)

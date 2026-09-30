@@ -24,13 +24,14 @@ import pandas as pd
 from l1_eval_window_size import Eval, prepare  # noqa: F401  (呼び出し側が使う)
 from l1_search_by_target import build, cond_of
 
-# 探索で決めた L1 の棄却条件。**ここを固定して通しで測る。**
-# すべて窓内の min/max/range だけで作れる。
+# レポート系が窓統計 (window_stats) に当てる棄却条件。
+# **ここを固定して通しで測る。** 窓内の min/max/range だけで作れる。
 #
-# これは **窓統計 (window_stats) を入力とするレポート用の L1** で、
-# 生 CAN の 2 秒窓で判定する `near_miss.l1.BASE` とは別物。
-# 同じ「L1」でも入力も閾値も違うので、混ぜて読まないこと。
-L1 = {
+# **本体パイプラインの L1 (`near_miss.l1.BASE`) とは別物。**
+#   near_miss.l1.BASE   生 CAN の 2 秒窓。車両の運動 (速度・ax・ay) で**残す**窓を決める
+#   ここ                窓統計の 10 秒窓。運転者の操作入力と ax で**落とす**窓を決める
+# 見ている量も窓長も判定の向きも違う。同じ「L1」として読まないこと。
+WINDOW_STATS_L1_RULE = {
     "brake_press_max": 0.2,     # 制動の強さ [MPa 等]
     "gas_range": 5.0,           # アクセル開度の変化 [%]
     "steer_range": 5.0,         # 舵角の変化 [deg]
@@ -69,7 +70,8 @@ def l1_condition(w: pd.DataFrame, spec: dict[str, float] | None = None):
 
     車両自身が危険と判断した瞬間で、こちらが閾値を決める余地がないため。
     """
-    return cond_of(w, L1 if spec is None else spec) & ~(w.safety_flag > 0.5).to_numpy()
+    rule = WINDOW_STATS_L1_RULE if spec is None else spec
+    return cond_of(w, rule) & ~(w.safety_flag > 0.5).to_numpy()
 
 
 def match_labels(df: pd.DataFrame, lab: pd.DataFrame) -> tuple[list, list]:

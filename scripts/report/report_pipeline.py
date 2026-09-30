@@ -25,7 +25,7 @@ import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
 
-from _stages import L1, Eval, l1_condition, l1_windows, load_candidates, load_events
+from _stages import WINDOW_STATS_L1_RULE, Eval, l1_condition, l1_windows, load_candidates, load_events
 
 # 種別の並び。回避反応 / 前方接近 / 安全系 の順に見せる。
 ORDER = [
@@ -76,7 +76,7 @@ def main() -> int:
     print("=" * 74)
     print("L1 条件 (窓 %g 秒 / 前後 %d 窓を保持 / 安全系フラグは override)"
           % (args.win, args.margin))
-    for k, v in L1.items():
+    for k, v in WINDOW_STATS_L1_RULE.items():
         print(f"    {k:<20} < {v:g}")
     print(f"    override 窓: {int(over.sum())} / {len(w)}")
     print("=" * 74)
