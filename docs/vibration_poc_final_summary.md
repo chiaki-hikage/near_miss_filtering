@@ -7,7 +7,7 @@
 
 ## 1. 物理モデル
 
-![モデル](../out/vibration/final/model_schematic.png)
+![モデル](../shared/vibration/final/model_schematic.png)
 
 | 項目 | 内容 |
 |---|---|
@@ -28,9 +28,9 @@
 | 08-17 seg9 | 地点 19 (一般道の交差点)、縁石側の車線 | 64 km/h | 同じ地点を 7 回通過したうち、右側が強かった走行 |
 | 08-17 seg41 | 地点 19、内側の車線 | 55 km/h | 対照 (同じ交差点で左右がそろって揺れた走行) |
 
-![波形](../out/vibration/final/three_hypotheses_waveforms.png)
+![波形](../shared/vibration/final/three_hypotheses_waveforms.png)
 
-![整合性](../out/vibration/final/three_hypotheses_matrix.png)
+![整合性](../shared/vibration/final/three_hypotheses_matrix.png)
 
 | 事象 | CAN 輪速の揺れ 右/左 | 前輪 → 後輪の時間差 (L/v) | 実測のロール/上下 | 片側仮説の予測 | 最も整合する仮説 |
 |---|---|---|---|---|---|
@@ -64,7 +64,7 @@
 
 ## 3. 映像との照合
 
-![車輪の通り道](../out/vibration/final/wheel_tracks_video.png)
+![車輪の通り道](../shared/vibration/final/wheel_tracks_video.png)
 
 映像に、平坦な路面と直進を仮定して左右の車輪の通り道を投影した。○ は、前輪が振動の開始時刻に通る位置。
 カメラの高さ・地平線の行は、地点 19 の白線から当てはめた値 (高さ 1.0 m、焦点距離 910 px) を、別のドライブの seg21 にも流用した。
