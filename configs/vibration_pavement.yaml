@@ -1,0 +1,50 @@
+# 舗装状態に対応した路面入力モデルの検証 (地点 19)。既存の configs/vibration.yaml・vibration_fullcar.yaml は変更しない。
+# 値はすべて仮定値か、その範囲。車両パラメータは vibration_fullcar.yaml を固定で使う。
+
+site19:
+  center_latlon: [37.726831, -122.471983]   # 振動イベントの位置の平均 (out/vibration/longtail/events_all.csv の site_id 19)
+  heading_deg: 2.0                          # 北向き
+  radius_m: 40.0
+  passes:                                   # GPS で見つけた北向きの通過 (drive, segment)
+    - ["2018-07-27--06-50-48", 14]
+    - ["2018-07-30--13-44-30", 15]
+    - ["2018-08-02--08-34-47", 40]
+    - ["2018-08-03--10-35-16", 16]
+    - ["2018-08-14--10-32-01", 38]
+    - ["2018-08-17--12-07-08", 41]
+    - ["2018-08-17--14-55-39", 9]
+
+camera:
+  # comma EON の前方カメラ。焦点距離は既知の内部パラメータ、高さと前輪からの距離は仮定
+  focal_px: 910.0
+  rows_used: [380, 660]          # 路面が写る行 (ボンネットより上)
+  cols_used: [400, 760]          # 自車線の中央付近 (車線境界の破線を避ける)
+  camera_behind_front_axle_m: 0.6    # 仮定。configs/vibration_fullcar.yaml の IMU 位置 (重心の前 0.55 m) と前軸 (1.17 m) の差
+  camera_behind_front_axle_range_m: [0.3, 1.2]
+
+road:
+  # ISO 8608: 変位 PSD Gd(n) = Gd(n0) (n / n0)^-w、n0 = 0.1 cycles/m、w = 2、片側 PSD [m^3]
+  n0: 0.1
+  waviness: 2.0
+  # 新しい舗装モデルで使う空間周波数帯。長波長側を 0.2 c/m (波長 5 m) で切り、区間長より長い波長を入れない
+  band_cpm: [0.2, 10.0]
+  # 区間外 (交差点の手前・先) の粗さ。ISO A (16e-6) の幾何平均
+  gd0_outside: 16.0e-6
+  taper_m: 0.5
+  # 舗装境界の位置は映像から求めた交差点の入口・出口 (前輪通過) を使う
+  # 校正で決める路面パラメータ (車両パラメータは固定)
+  calibrate:
+    gd0_inside_range: [4.0e-6, 4.0e-3]   # ISO A 未満 〜 E
+    common_fraction_range: [0.0, 1.0]    # 左右で共通な (横断方向にそろった) 成分の割合
+    crown_height_range_m: [0.0, 0.06]    # モデル C のなだらかな高さ変化 (交差道路の路面の盛り上がりを想定)
+  seeds: 24                               # 全走行で同じ乱数の組を使う (走行ごとに位相を調整しない)
+  field_lateral_extent_m: 12.0           # 2 次元路面の左右の幅
+
+analysis:
+  bands_hz: [[0.5, 3.0], [3.0, 8.0], [8.0, 15.0], [15.0, 30.0]]
+  window_pre_s: 2.0      # 交差点に入る前
+  window_post_s: 2.0     # 交差点を出た後
+  # 物理的に不適切とみなす条件
+  max_road_rms_mm: 10.0        # 区間内の路面高さ RMS (帯域 band_cpm) がこれを超えるなら不自然
+  max_lift_off_ms: 0.0         # タイヤが浮く計算は線形の適用外として不適切扱い
+  calibration_drive: ["2018-08-17--12-07-08", 41]

@@ -1,0 +1,83 @@
+# 路面凹凸・片輪振動 PoC の設定。値はすべて暫定で、映像確認で校正する。
+# 使うのは comma2k19 の IMU (processed_log/IMU) と CAN。本体パイプラインの
+# 「特徴量は CAN のみ」という方針の例外で、本体の検出には影響しない。
+
+grid_hz: 100.0
+min_gyro_hz: 50.0          # ジャイロが実質 10 Hz の初期ドライブを除くため
+min_speed_mps: 5.0         # 停車・徐行中の振動は路面入力と区別しにくい
+
+# 帯域。0.7 Hz 未満を落とすのは、旋回・車線変更のロール (0.1〜0.5 Hz) を除くため。
+# 20 Hz 超を落とすのは、停車中にも出ているエンジン・取付部の成分を除くため。
+band_hz:
+  heave: [0.7, 20.0]
+  roll: [0.7, 15.0]
+  pitch: [0.7, 15.0]
+  wheel: [2.0, 15.0]
+envelope_s: 0.3            # 移動 RMS の窓
+
+# 包絡線は車速ビンごとの中央値で割り、「普段の何倍か」で比べる
+speed_bin_mps: 5.0
+
+event:
+  min_separation_s: 2.0
+  half_width_frac: 0.5     # 区間 = スコアがピークのこの割合を超えている連続範囲
+  roll_heave:              # 片輪段差の候補
+    roll_ratio_min: 3.0
+    heave_ratio_min: 3.0
+    roll_over_pitch_min: 0.6
+  pitch_only:              # 両輪同時の段差・継ぎ目の候補
+    pitch_ratio_min: 4.0
+    roll_ratio_max: 2.5
+
+rebound:
+  window_s: [-0.3, 2.0]    # ピーク基準
+  extremum_frac: 0.2       # 最大振幅のこの割合以上の極値だけ数える
+
+maneuver:                  # ピーク ±2 s で操舵や旋回が大きければ旗を立てる
+  window_s: 2.0
+  steer_range_deg: 15.0    # ハンドル角
+  yaw_range_dps: 4.0
+  ay_range_mps2: 1.5
+
+spike:                     # 1〜2 サンプルだけの飛び値を見分ける
+  max_samples_above_half: 3
+
+wheel:
+  window_s: [-0.3, 0.7]
+
+repeat:                    # 同じ地点・同じ向きで別ドライブにも出ているか
+  radius_m: 25.0
+  heading_deg: 30.0
+  pool: 300                # 照合に使う候補数 (スコア上位)
+
+output:
+  top_n: 20
+  csv_pool: 300
+
+# ---------------------------------------------------------------------------
+# 振動起因のロングテール候補 (scripts/vibration/score_longtail.py)
+# A: 路面外乱の異常度 / B: 車両挙動の異常度 / C: 同種イベントの希少性
+# ---------------------------------------------------------------------------
+longtail:
+  a_min: 3.0                 # sqrt(上下比 × max(ロール比, ピッチ比)) がこれ以上を振動イベントとする
+  pre_s: [-5.0, -0.5]        # 振動開始を 0 とした前のベースライン窓
+  post_s: 3.0                # 振動終了からこの秒数を「振動後」とする。振動中は IMU・輪速が
+                             # 揺れて挙動の指標を汚すので、挙動は振動の後だけで評価する
+  yaw_band_hz: [0.2, 3.0]    # ヨーレート残差の帯域
+  steer_lp_hz: 3.0           # 舵角速度を作る前の低域通過
+  steer_rate_floor_dps: 2.0  # 前窓の舵角速度がこれ未満でも、比の分母はこの値にする
+  heading_ref_s: 1.0         # 振動開始直前のこの秒数で、単軌道モデルの定常誤差を見積もって差し引く
+  null_samples: 4000         # 正常走行から取る比較用の疑似イベント数
+  null_quiet_s: 5.0          # 疑似イベントの前後この秒数に振動が無いこと
+  null_seed: 0
+  surprise_hi: 2.0           # 正常走行の上位 1% (= -log10(0.01))
+  one_sided_lr_log2: 1.0     # 左右の輪速の揺れが 2 倍以上
+  braking_gvc_mps2: -1.0
+  turning_ay_mps2: 1.5
+  p3_a_pct: 0.75            # 制動・旋回中でも、振動が全イベントの上位 25% に入るものだけ優先 3 にする
+  avoid_pre_s: [-3.0, 0.0]   # 回避的な軌跡変化を見る、振動前の窓。道路の曲率は
+                             # detection.yaml の lane_change.curvature_window_s の移動中央値で除く
+  a_extreme_pct: 0.95        # 全振動イベント中の上位 5% を「著しく大きい」とする
+  site_radius_m: 25.0
+  site_heading_deg: 30.0
+  top_n: 20
