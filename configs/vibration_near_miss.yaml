@@ -1,0 +1,33 @@
+# 既存の振動イベント (out/vibration/locate/candidates.csv) を、
+# 「路面凹凸により短時間に強い上下・ロール応答が発生した異常振動ヒヤリハット候補」として並べ直す
+# (scripts/vibration/rank_near_miss_vibration.py)。イベントの検出はやり直さない。
+# しきい値はすべて暫定。分布の分位点で決め、実際の値も出力に残す。
+
+base_config: configs/vibration.yaml
+locate_dir: out/vibration/locate
+physics_dir: out/vibration/physics_validation   # all_events_side_index.csv (IMU から見た左右)
+
+window_s: 1.5                 # 上下の最大の点の前後この秒数を基準の窓にする
+core_half_s: 0.5              # この前後 (= 1 秒) に応答が集中しているかを見る
+envelope_s: 0.1               # 立ち上がりを測る包絡線 (移動 RMS) の窓
+
+strong_pct: 0.75              # 上下・ロールの最大値 (絶対値) が全イベントのこの分位点以上を「強い」とする
+simultaneous:
+  min_pct: 0.5                # 上下・ロールとも全イベントの中央値以上で、
+  max_dt_s: 0.25              # 最大の時刻の差がこれ以内
+impulsive:
+  min_concentration: 0.5      # 前後 1.5 s のエネルギーのうち、前後 0.5 s に入る割合
+  max_rise_s: 0.3             # 包絡線が最大の 25% から最大に達するまでの時間
+road:
+  wheel_ratio_min: 3.0        # CAN 輪速の揺れが普段の 3 倍以上 (IMU と独立の裏付け)
+
+# 総合点 (0〜100) = 100 × sqrt(上下の分位 × ロールの分位) × 集中度
+#   × (11 Hz の固有応答だけなら wheelhop_factor) × (輪速の裏付けが無ければ no_wheel_factor)
+# 繰り返し・映像は点に入れず、根拠の列として並べる (映像は上位 20 地点にしか無く、点に入れると偏るため)
+wheelhop_factor: 0.5
+no_wheel_factor: 0.5
+top_n: 20
+clip_s: 3.0                   # 動画は前輪の当たり時刻の前後この秒数
+baseline:                     # 普段の走行でしきい値を超える割合を見るための無作為なセグメント
+  segments: 120
+  seed: 0

@@ -1,0 +1,72 @@
+# 路面起因と思われる振動地点の位置特定 PoC の設定 (scripts/vibration/locate_candidates.py)。
+# 振動イベントの検出は configs/vibration.yaml (score_longtail.py と同じ A ≥ a_min) をそのまま使う。
+# ここにはその上に足す指標・位置付け・同一地点の判定だけを置く。値はすべて暫定。
+
+base_config: configs/vibration.yaml
+pavement_config: configs/vibration_pavement.yaml        # カメラの焦点距離・前輪との距離、地点 19 の中心
+camera_fit: out/vibration/pavement/site19_camera_fit.yaml  # 地平線の行と K (site19_survey.py の当てはめ結果)
+landmark_passes: out/vibration/pavement/site19_passes.csv  # 地点 19 の横断歩道を前輪が通過した時刻 (映像から)
+
+# 帯域別の普段比。上下・ロールそれぞれ 3〜8 Hz (路面入力とモデルの整合が比較的良い帯域) と
+# 8〜15 Hz (ばね下の共振 11〜12 Hz を含む帯域) に分け、同じ車速帯の中央値で割る
+bands_hz:
+  road: [3.0, 8.0]
+  wheelhop: [8.0, 15.0]
+band_ratio_min: 2.0          # 帯域の普段比がこれ以上を「応答あり」とする
+wheel_ratio_min: 3.0         # CAN 輪速の揺れの普段比がこれ以上を「IMU と独立に裏付けあり」とする
+lag_tol_s: 0.05              # 前輪 → 後輪の揺れの時間差と L/v の差がこれ以内なら「一致」
+
+# 前輪が当たった時刻: ピークの前後でこの範囲を探し、上下 (0.7〜20 Hz) の絶対値が
+# 最大値の hit_frac 倍を最初に超えた時刻とする
+hit:
+  search_s: [-0.5, 0.1]
+  frac: 0.5
+
+position:
+  ref_latlon: [37.65, -122.44]   # 局所平面 (東・北 [m]) の原点。CA-280 沿いの全範囲が 20 km 以内に入る
+  hit_time_unc_s: 0.05           # 当たり時刻の不確かさ (1σ 相当の目安)
+  camera_offset_unc_m: 0.45      # カメラと前輪の距離 0.6 m の仮定の幅 (0.3〜1.2 m の半分)
+
+site:
+  # 同じ地点とみなす半径。10 m で始め、実測から 6 m にした (docs/vibration_locate_candidates.md 2 章)。
+  #   地点 19 の横断歩道 (7 走行・13 本): 進行方向の誤差 σ = 0.40 m (GPS + 線の時刻)
+  #   同じ地点に入った別ドライブのイベント: 進行方向のばらつきの中央値 1.0 / 1.9 / 2.6 m (半径 6 / 10 / 15 m)
+  #   半径 = clip(ceil(2√2 × sqrt(0.40² + σ_event²)), 5, 15) は 5 / 6 / 8 m。使った半径と提案が釣り合う 6 m を採った
+  radius_m: 6.0
+  heading_deg: 30.0              # 進行方向の差がこれ以内
+  # 横方向は同じ車線だけを同じ地点とする。地点 19 では GPS の横位置が内側の車線 −1.0〜+0.4 m、
+  # 縁石側の車線 +1.7〜+3.4 m に分かれた (out/vibration/locate/position_check_site19.csv)。
+  # 車線が違えば踏む凹凸も違う (地点 19 のマンホールは縁石側の車線だけ) ので、再現も同じ車線の通過だけで数える
+  lane_half_m: 1.5
+  point_contrast_min: 1.5        # 地点の中の最大値 / 前後の中央値 (通過ごとの中央値) がこれ以上を「点状」とする
+
+repeat:
+  # 通過ごとの再現の判定。無作為な場所の前後 10 m の窓 (Chunk_1) では A の p90 = 3.4、上下比の p90 = 3.2。
+  # 2.0 では偶然でも 3 割の窓が超えるので、イベントと同じ 3.0 にした (偶然に超える割合は約 1 割)
+  a_min: 3.0                     # A (ジャイロ 104 Hz の走行のみ) がこれ以上
+  heave_ratio_min: 3.0           # 上下の普段比 (ジャイロ 10 Hz の走行も含む) がこれ以上
+  null_windows: 4000             # 無作為な場所の同じ長さの窓。再現の起こりやすさの基準
+  null_seed: 0
+  flank_m: [5.0, 25.0]           # 地点の外 (半径の外側 5〜25 m) を前後の基準にする
+  contrast_min: 1.3              # 窓の中の最大値が前後の中央値のこの倍以上 (荒れた区間の途中の山を再現と数えない)
+  edge_margin_m: 1.0             # 窓 (±半径) の端からこの距離以内で最大になった通過は再現に数えない (隣の凹凸の立ち上がり)
+  min_passes: 3                  # 再現性を評価する最小の通過数 (いちばん強い通過を除く)
+  surprise_min: 2.0              # -log10(二項分布の上側確率) がこれ以上を「再現」とする (偶然なら 1%)
+  side_consistency_min: 0.7      # 再現した通過のうち、強い側が同じ割合
+
+# 区間: 同じ向きで link_m 以内につながる地点をまとめる (荒れた区間・橋の継ぎ目の連なり)。
+# 上位の一覧は同じ区間から max_per_stretch 件までにする (1 つの区間が一覧を占めないように)
+stretch:
+  link_m: 50.0
+  max_per_stretch: 2
+  opposite_m: 20.0               # 反対向きの地点がこの距離以内にあれば記録する (道路を横切る継ぎ目の手がかり)
+
+# 地点の順位: 印 (A・B・C・E) の数 → 再現性 → 振動の強さ
+output:
+  top_n: 20
+  clip_s: 3.0                    # 動画・波形はイベントの前後この秒数
+  frame_ahead_m: [12.0, 6.0]     # 前輪が当たる地点がこの距離だけ前方に見えるフレームを出す
+  clips: true
+  review_csv: out/vibration/locate/review_video.csv   # 目視確認 (D) の記録。位置と向きで地点に対応付ける
+  local_utc_offset_h: -7          # 2018 年 7〜9 月の米国太平洋夏時間
+  daylight_local_h: [7, 19]      # 映像は、この時間帯のイベントから選ぶ (夜間は路面が見えにくい)

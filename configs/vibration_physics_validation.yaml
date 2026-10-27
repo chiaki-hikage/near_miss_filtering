@@ -1,0 +1,74 @@
+# 映像で路面特徴が見えた振動地点を、既存の 7 自由度 Full-car モデルで説明できるかの検証
+# (scripts/vibration/validate_sites_with_fullcar.py)。
+#
+# 路面の高さは当てはめない。モデルは線形 (タイヤが浮く場合を除く) なので、比較に使う
+# 符号・時刻・比・周波数・減衰は高さによらない。高さは振幅の幅を示すためだけに振る。
+# 車両パラメータは configs/vibration_fullcar.yaml のまま一切動かさない。
+
+fullcar_config: configs/vibration_fullcar.yaml
+base_config: configs/vibration.yaml               # 帯域通過・格子 (実測の処理と同じ)
+locate_dir: out/vibration/locate                  # top20.csv (映像判定つき) と candidates.csv
+
+# 代表の路面形状。長さ [m]。height は正で突起、負で凹み (下の heights_m を掛ける)
+shapes:
+  dip:         {kind: cosine, length_m: 0.5, sign: -1, note: "穴・沈んだ補修跡 (1−cos の凹み)"}
+  bump:        {kind: cosine, length_m: 0.5, sign: 1,  note: "盛り上がった補修跡 (1−cos の突起)"}
+  narrow_dip:  {kind: cosine, length_m: 0.15, sign: -1, note: "継ぎ目の溝"}
+  narrow_bump: {kind: cosine, length_m: 0.15, sign: 1,  note: "継ぎ目の盛り上がり"}
+  step_up:     {kind: step,   length_m: 0.05, sign: 1,  note: "段差 (上り)"}
+  sine:        {kind: sine,   length_m: 0.6,  sign: 1,  note: "短い正弦波パルス (突起 → 凹み)"}
+heights_m: [0.01, 0.02, 0.03]     # 振幅の幅を見るだけ。実路面の高さの推定値ではない
+ref_height_m: 0.02                # 表に載せるモデルの帯域 RMS はこの高さのもの
+
+# 左右の入力の与え方
+#   R: 右前輪 → L/v 後に右後輪   L: 左右反転   B: 左右前輪が同時 → L/v 後に左右後輪
+sides: [R, L, B]
+# 継ぎ目の変形 (左右同時の仲間)。斜め: 右 (または左) の前輪がトレッド × tanθ だけ遅れて当たる。
+# 非対称: 片側の高さが asym_ratio 倍。どちらも値は固定で、当てはめない
+joint_variants:
+  skew_deg: 15.0
+  asym_ratio: 0.5
+
+# 荒れた路面: 単発ではなく、左右独立の ISO 8608 型の荒れを短い区間に置く。強さは当てはめずクラス B に固定
+rough:
+  iso_class: B
+  length_m: [1.0, 6.0]            # 実測の 8〜15 Hz 振動の継続 × 車速をこの範囲に収めて使う
+  seeds: 10
+
+window_s:
+  plot: [-1.0, 2.0]               # 前輪の当たり時刻から
+  metric_pre: 0.15                # 比・相関は [当たり − 0.15 s, 当たり + L/v + metric_post]
+  metric_post: 0.6
+  lag_search: 0.05                # 3〜8 Hz の波形相関で許す時間ずれ
+  hit_search: [-0.5, 0.1]         # 当たり時刻の検出 (locate_candidates.py と同じ定義)
+  hit_frac: 0.5
+
+bands_hz:
+  road: [3.0, 8.0]
+  wheelhop: [8.0, 15.0]
+  wheel: [2.0, 15.0]              # 輪速と、モデルのタイヤ荷重変動 (輪速の代わり)
+  wheelhop_peak: [10.0, 13.5]     # 11〜12 Hz の固有応答とみなす主周波数の範囲
+
+# 段階評価のしきい値
+judge:
+  lag_tol_s: 0.05                 # P2: 前輪 → 後輪の時間差と L/v の差 (true)
+  lag_unc_s: 0.10                 #     これ以内なら uncertain
+  wheel_side_log2: 1.0            # 輪速の揺れの左右差 2 倍以上で片側とみなす
+  one_sided_roll_frac: 0.5        # 実測のロール/上下が片側入力モデルのこの割合以上なら片側らしい
+  both_roll_frac: 0.35            # この割合未満なら左右同時らしい
+  corr_true: 0.5                  # P4: 3〜8 Hz の上下の波形相関
+  corr_unc: 0.3
+  aux_corr_true: 0.4              # P4: ロールかピッチの 3〜8 Hz の相関
+  side_index_min: 0.3             # P1: 側の指標 (ロール角速度と上下速度の 3〜8 Hz 相関) の絶対値がこれ以上で片側とみなす
+  repeat_frac: 0.7                # P6: 地点のイベントのこの割合以上で、強い側と上下の最初の向き (凹み/突起) が同じ
+
+# 映像判定の文言 → 路面特徴の種類と左右
+video_map:
+  の多い: {feature: rough, side: B}           # 「亀裂・補修跡の多い路面」など。補修跡より先に照合する
+  補修帯: {feature: joint, side: B}          # 車線を横切る補修の帯
+  補修跡: {feature: patch, side: R_or_L}
+  穴: {feature: patch, side: R_or_L}
+  継ぎ目: {feature: joint, side: B}
+  境界: {feature: joint, side: B}
+  亀裂の多い: {feature: rough, side: B}
+  亀裂: {feature: patch, side: R_or_L}
