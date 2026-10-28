@@ -1,0 +1,55 @@
+# API 連携の検討用サンプル (scripts/report/export_api_samples.py) の選び方。
+#
+# 既存の出力 (out/ 以下) から行をそのまま抜き出すだけで、再計算はしない。
+# どの行を抜くかをここに書く。値を変えても既存の出力には影響しない。
+
+out_dir: out/near_miss_api_samples
+
+# 既存の L3 イベント (急ブレーキ・急操舵など)。最新の統合出力を使う。
+existing:
+  comma2k19:
+    events: out/l1_l3/c2k19/events.csv
+    # 候補 (区間の集計値) は L3 のチャンク別出力にある。l1_l3 の candidates.csv は列が少ない
+    candidates: [out/chunk1_v3/candidates.csv, out/chunk2_v3/candidates.csv]
+    # 人手の判定。候補との対応は区間の重なりで取る (io_spec.md 4.4)
+    labels: [out/chunk1/labels.csv, out/chunk2_final/labels.csv]
+    # (event_type, drive_id, t_start) で行を指定する
+    picks:
+      - [hard_brake, "b0c9d2329ad1606b|2018-11-11--13-08-44", 267990.35]
+      - [hard_brake, "b0c9d2329ad1606b|2018-08-17--14-55-39", 78643.25]
+      - [hard_brake, "b0c9d2329ad1606b|2018-08-17--14-17-47", 77145.30]
+      - [hard_steer, "b0c9d2329ad1606b|2018-07-30--13-44-30", 13053.85]
+      - [hard_steer, "b0c9d2329ad1606b|2018-10-09--14-06-32", 10957.25]
+      - [hard_steer, "b0c9d2329ad1606b|2018-08-03--10-35-16", 1702.75]
+  comma_car_segments:
+    events: out/l1_l3/ccs/events.csv
+    # 種別ごとに、ファイルの並び順で先頭から何件抜くか
+    head_per_type: {hard_brake: 1, hard_steer: 1}
+
+slip:
+  # 直接証拠の枝 (等級の改訂後、2026-09-16 の v3)
+  direct: out/sideslip_TOYOTA_RAV4_TSS2_v3/direct_slip.csv
+  direct_grades: [multi_evidence, high_evidence, activation_only]   # 等級ごとに先頭 1 件
+  # beta の枝 (comma2k19、映像あり)
+  beta: out/sideslip_chunk1_v2/candidates.csv
+  beta_n: 2
+
+road_vibration:
+  near_miss: out/vibration/near_miss/near_miss_vibration_events.csv
+  locate: out/vibration/locate/candidates.csv
+  iso2631: out/vibration/near_miss/iso2631_events.csv
+  physics_event: out/vibration/physics_validation_near_miss/event_physics_validation.csv
+  physics_site: out/vibration/physics_validation_near_miss/site_physics_validation.csv
+  physics_signals: out/vibration/near_miss/physics_vs_video_sites.csv
+  sites: out/vibration/locate/sites.csv
+  media_dir: out/vibration/near_miss/media
+  locate_meta: out/vibration/locate/meta.json
+  near_miss_meta: out/vibration/near_miss/meta.json
+  event_ids: [E0818, E0474, E0870]
+  # 異常振動ヒヤリハット候補 = 次の 5 列がすべて true (docs/vibration_near_miss_candidates.md 1 章)
+  candidate_columns: [strong_vertical, strong_roll, simultaneous_vertical_roll, impulsive_response, road_related_evidence]
+
+# comma2k19 の生データの置き場所 (チャンクの対応を引くため)
+raw_root: raw_data
+ccs_base_url: https://huggingface.co/datasets/commaai/commaCarSegments/resolve/main
+video_fps: 20

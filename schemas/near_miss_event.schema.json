@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://near-miss-filtering.local/schemas/near_miss_event.schema.json",
+  "title": "Near-miss canonical event",
+  "description": "ヒヤリハット候補の検出イベント 1 件 (API 連携用の共通形式)。値が無い項目は省く (null を入れなくてよい)。変換元・導出の記録 (provenance) はこの形式に含めず、別ファイルに event_id で対応させる。仕様は docs/near_miss_canonical_schema.md。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "event_type", "detector", "dataset", "drive_id", "time", "detection", "source", "attributes"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": {
+      "description": "検出結果単位の stable ID。同じ実世界の事象でも、event_type や detector が違えば別の ID になる (束ねる physical event ID ではない)",
+      "type": "string", "pattern": "^nm_[0-9a-f]{16}$"
+    },
+    "event_type": {
+      "description": "イベントの種別 (hard_braking / hard_steering / slip / road_vibration など)。新しい種別は snake_case で足す。列挙はしない",
+      "type": "string", "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "detector": {
+      "description": "このイベントを出した検出ロジックの名前",
+      "type": "string", "pattern": "^[a-z][a-z0-9_]*$"
+    },
+
+    "dataset": { "description": "データセットの名前", "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "vehicle": { "description": "車種", "type": "string" },
+    "drive_id": { "description": "走行 (ドライブ) の識別子。comma 系では <dongle_id>|<route>", "type": "string", "minLength": 1 },
+    "chunk": { "description": "データセットの分割単位 (comma2k19 の Chunk_N)。無いデータセットでは省く", "type": "string" },
+    "segment": {
+      "description": "元データにおける時系列区間の識別子。comma 系では 60 秒セグメントの番号。区間の概念が無いデータセットでは省く (そのとき time の秒は走行の先頭から)",
+      "type": ["integer", "string"]
+    },
+
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "start_sec", "end_sec"],
+      "properties": {
+        "base": {
+          "description": "start_sec などの基準。segment_relative_s = segment の先頭からの秒",
+          "enum": ["segment_relative_s"]
+        },
+        "start_sec": { "description": "負なら前の区間から始まる", "type": "number" },
+        "end_sec": { "description": "区間の長さを超えるときは次の区間にまたがる", "type": "number" },
+        "peak_sec": { "type": "number" },
+        "utc": { "description": "代表時刻の UTC (ISO 8601)", "type": "string", "format": "date-time" },
+        "boot_time_start_s": { "description": "元ログのタイムスタンプ (comma 系では端末の boot time [s])。元の CAN・IMU のファイルの中で同じ時刻を引くのに使う", "type": "number" },
+        "boot_time_end_s": { "type": "number" },
+        "segment_origin": {
+          "description": "v1 の互換のために残す。segment の 0 秒をどの系列で決めたか (系統で数十 ms 違う)。将来は変換時に吸収したい内部差異",
+          "enum": ["can_primary_overlap_start", "imu_accel_first_sample"]
+        }
+      }
+    },
+
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latitude", "longitude"],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "heading_deg": { "type": "number" },
+        "gnss_acc_m": { "description": "GNSS の水平精度 (自己申告)", "type": "number", "minimum": 0 }
+      }
+    },
+
+    "speed_mps": { "type": "number", "minimum": 0 },
+
+    "score": {
+      "description": "種別ごとに意味が違うので、必ず名前と組で持つ",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "number" }
+      }
+    },
+
+    "grade": { "description": "元データに明示の等級がある場合のみ", "type": "string" },
+    "candidate_flag": { "description": "元データの明示値か、文書化した規則で導出できる場合のみ", "type": "boolean" },
+
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method"],
+      "properties": {
+        "method": { "type": "string" },
+        "rule": { "description": "判定の規則 (または立った証拠・通過の理由)", "type": "string" },
+        "criteria": { "description": "判定量・閾値など、規則の中身", "type": "object" },
+        "config_hash": { "description": "検出に使った設定のハッシュ", "type": "string" },
+        "algorithm_version": { "description": "検出したコードの版 (git commit)", "type": "string" },
+        "created_at": { "description": "検出を実行した時刻", "type": "string", "format": "date-time" }
+      }
+    },
+
+    "source": {
+      "description": "元データへの参照。URI はデータのルートからの相対パス (例 comma2k19/Chunk_2/...)、または s3:// などそれだけで解決できる URI",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "video_uri": { "type": "string" },
+        "can_uri": { "type": "string" },
+        "imu_uri": { "type": "string" },
+        "gnss_uri": { "type": "string" },
+        "video_frame_start": { "type": "integer", "minimum": 0 },
+        "video_frame_end": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "review": { "description": "人手ラベル・映像レビュー。元の表記のまま", "type": "object" },
+
+    "attributes": {
+      "description": "event_type ごとの固有値 (自由な構造)。将来は event_type ごとの schema (schemas/attributes/<event_type>.schema.json) に分けられる",
+      "type": "object"
+    }
+  }
+}

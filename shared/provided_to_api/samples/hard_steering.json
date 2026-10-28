@@ -1,0 +1,227 @@
+[
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_90f71a4ef9a8489d",
+    "event_type": "hard_steering",
+    "detector": "l3_rules",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-07-30--13-44-30",
+    "chunk": "Chunk_1",
+    "segment": 11,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 15.9,
+      "end_sec": 16.3,
+      "boot_time_start_s": 13053.849999995413,
+      "boot_time_end_s": 13054.249999995409
+    },
+    "score": {
+      "name": "candidate_severity",
+      "value": 7.269309077693796
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "steer_rate_dps abs_gt 25.0 & ay_kin_mps2 abs_gt 2.0 & ay_can_mps2 abs_gt 1.4 (許容ずれ 0.3s)",
+      "config_hash": "231eee1fe6",
+      "created_at": "2026-09-14T07:07:58Z",
+      "criteria": {
+        "feature": "ay_kin_mps2",
+        "op": "agreement",
+        "threshold": 2.0,
+        "gate": "net_heading_win_deg lt 15.0 & v_mps gt 5.0",
+        "stage": 2,
+        "weight": 0.3
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/11/video.hevc",
+      "can_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/11/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/11/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/11/global_pose",
+      "video_frame_start": 318,
+      "video_frame_end": 326
+    },
+    "review": {
+      "risky": true,
+      "verdict": "リスク高",
+      "note": "右レーンにいた車が車線変更し、自車も左レーンに移動"
+    },
+    "attributes": {
+      "source_event_type": "hard_steer",
+      "label": "急操舵",
+      "lateral_accel_mps2": -2.4280018350653143,
+      "threshold": 2.0,
+      "exceedance": 0.4280018350653143,
+      "duration_s": 0.3999999999941792,
+      "candidate_window": {
+        "speed_mean_mps": 28.327584841394156,
+        "speed_min_mps": 26.59375898472215,
+        "severity": 7.269309077693796,
+        "n_events": 4,
+        "steering_rate_dps": -31.604573549216735,
+        "lateral_accel_mps2": -2.6545860011702365,
+        "lateral_accel_can_mps2": -2.2102899305584796,
+        "yaw_rate_dps": -5.439999999999998,
+        "lateral_jerk_mps3": -4.240898439241245,
+        "lateral_jerk_win_mps3": 4.240898439241245,
+        "steer_reversals_max": 3.0,
+        "event_types": [
+          "hard_steer",
+          "lane_change_candidate",
+          "risky_lane_change",
+          "short_thw"
+        ]
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_2f08790e26686ea7",
+    "event_type": "hard_steering",
+    "detector": "l3_rules",
+    "dataset": "comma_car_segments",
+    "vehicle": "toyota_rav4_tss2",
+    "drive_id": "8bb58ef0f2d612b7|0000038a--672206e0ac",
+    "segment": 33,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 6.32,
+      "end_sec": 7.02,
+      "boot_time_start_s": 32989.75000000383,
+      "boot_time_end_s": 32990.45000000387
+    },
+    "score": {
+      "name": "candidate_severity",
+      "value": 13.88643730034316
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "steer_rate_dps abs_gt 25.0 & ay_kin_mps2 abs_gt 2.0 & ay_can_mps2 abs_gt 1.4 (許容ずれ 0.3s)",
+      "config_hash": "9bb78e6b6e",
+      "created_at": "2026-09-17T04:09:38Z",
+      "criteria": {
+        "feature": "ay_kin_mps2",
+        "op": "agreement",
+        "threshold": 2.0,
+        "gate": "net_heading_win_deg lt 15.0 & v_mps gt 5.0",
+        "stage": 2,
+        "weight": 0.3
+      }
+    },
+    "source": {
+      "can_uri": "comma_car_segments/segments/8bb58ef0f2d612b7/0000038a--672206e0ac/33/rlog.zst"
+    },
+    "attributes": {
+      "source_event_type": "hard_steer",
+      "label": "急操舵",
+      "platform": "TOYOTA_RAV4_TSS2",
+      "lateral_accel_mps2": 2.5929585049881534,
+      "threshold": 2.0,
+      "exceedance": 0.5929585049881534,
+      "duration_s": 0.7000000000407454,
+      "candidate_window": {
+        "speed_mean_mps": 21.69638428297223,
+        "speed_min_mps": 18.601780077492613,
+        "severity": 13.88643730034316,
+        "n_events": 13,
+        "steering_rate_dps": -84.5178671737103,
+        "lateral_accel_mps2": 3.177987763596222,
+        "lateral_accel_can_mps2": 3.385967435059987,
+        "yaw_rate_dps": 7.49199999999999,
+        "lateral_jerk_mps3": -9.61836119722252,
+        "lateral_jerk_win_mps3": 9.61836119722252,
+        "steer_reversals_max": 4.0,
+        "steer_torque_driver": 381.30411691272434,
+        "event_types": [
+          "counter_steer",
+          "cut_in_candidate",
+          "hard_steer",
+          "low_ttc",
+          "short_thw",
+          "weaving",
+          "yaw_instability"
+        ]
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_11dade7bd1cf8e7a",
+    "event_type": "hard_steering",
+    "detector": "l3_rules",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-08-02--08-34-47",
+    "chunk": "Chunk_1",
+    "segment": 37,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 36.86,
+      "end_sec": 37.31,
+      "boot_time_start_s": 46265.450000030054,
+      "boot_time_end_s": 46265.90000003008
+    },
+    "score": {
+      "name": "candidate_severity",
+      "value": 0.3869009936483164
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "steer_rate_dps abs_gt 25.0 & ay_kin_mps2 abs_gt 2.0 & ay_can_mps2 abs_gt 1.4 (許容ずれ 0.3s)",
+      "config_hash": "231eee1fe6",
+      "created_at": "2026-09-14T07:07:58Z",
+      "criteria": {
+        "feature": "ay_kin_mps2",
+        "op": "agreement",
+        "threshold": 2.0,
+        "gate": "net_heading_win_deg lt 15.0 & v_mps gt 5.0",
+        "stage": 2,
+        "weight": 0.3
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/37/video.hevc",
+      "can_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/37/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/37/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/37/global_pose",
+      "video_frame_start": 737,
+      "video_frame_end": 746
+    },
+    "review": {
+      "risky": true,
+      "verdict": "若干リスクあり",
+      "note": "右レーンへ移動しようとしたが前方車が減速したため中止"
+    },
+    "attributes": {
+      "source_event_type": "hard_steer",
+      "label": "急操舵",
+      "lateral_accel_mps2": 2.579339957655443,
+      "threshold": 2.0,
+      "exceedance": 0.579339957655443,
+      "duration_s": 0.4500000000261934,
+      "candidate_window": {
+        "speed_mean_mps": 30.49755309680992,
+        "speed_min_mps": 30.40138294037874,
+        "severity": 0.3869009936483164,
+        "n_events": 1,
+        "steering_rate_dps": 42.63782158554669,
+        "lateral_accel_mps2": 2.579339957655443,
+        "lateral_accel_can_mps2": 3.1115408105808524,
+        "yaw_rate_dps": 5.295999999999992,
+        "lateral_jerk_mps3": 6.736228849148646,
+        "lateral_jerk_win_mps3": 6.736228849148646,
+        "steer_reversals_max": 2.0,
+        "event_types": [
+          "hard_steer"
+        ]
+      }
+    }
+  }
+]

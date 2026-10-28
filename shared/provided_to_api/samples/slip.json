@@ -1,0 +1,193 @@
+[
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_1486418d4680e755",
+    "event_type": "slip",
+    "detector": "slip_direct_evidence",
+    "dataset": "comma_car_segments",
+    "vehicle": "toyota_corolla_tss2",
+    "drive_id": "92e53d23b211c104|0000004e--743df4d5df",
+    "segment": 31,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 46.71,
+      "end_sec": 52.41,
+      "boot_time_start_s": 1933.099999999958,
+      "boot_time_end_s": 1938.799999999953
+    },
+    "speed_mps": 10.57,
+    "grade": "multi_evidence",
+    "detection": {
+      "method": "direct_evidence",
+      "rule": "slip_warn|abs_active|vsc_active|wheel_spread|wheel_decel|lateral",
+      "config_hash": "9bb78e6b6e",
+      "created_at": "2026-09-16T05:08:44Z"
+    },
+    "source": {
+      "can_uri": "comma_car_segments/segments/92e53d23b211c104/0000004e--743df4d5df/31/rlog.zst"
+    },
+    "attributes": {
+      "platform": "TOYOTA_COROLLA_TSS2",
+      "duration_s": 5.7,
+      "evidence": [
+        "slip_warn",
+        "abs_active",
+        "vsc_active",
+        "wheel_spread",
+        "wheel_decel",
+        "lateral"
+      ],
+      "corroboration": "slip_warn:wheel_spread+wheel_decel+lateral|abs_active:wheel_decel+wheel_spread|vsc_active:lateral",
+      "mechanisms": [
+        "輪速",
+        "横方向"
+      ],
+      "n_direct": 3,
+      "n_corroborated": 3,
+      "n_mechanisms": 2,
+      "slip_warn": true,
+      "abs_active": true,
+      "vsc_active": true,
+      "wheel_spread": true,
+      "wheel_decel": true,
+      "lateral": true,
+      "yaw_residual": false,
+      "tc_disabled": false,
+      "slip_warn_peak": 4.0,
+      "wheel_speed_diff_peak_mps": 3.743,
+      "wheel_decel_peak_mps2": -21.93,
+      "speed_max_mps": 14.63,
+      "at_peak": {
+        "ax_mps2": -2.718,
+        "ay_mps2": -8.362,
+        "yaw_rate_dps": -62.72,
+        "steering_angle_deg": -438.7
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_0d4d92c021ff3b2d",
+    "event_type": "slip",
+    "detector": "slip_sideslip_beta",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-09-15--17-50-36",
+    "chunk": "Chunk_2",
+    "segment": 77,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 4.71,
+      "end_sec": 9.16,
+      "peak_sec": 6.71,
+      "boot_time_start_s": 31931.199999997323,
+      "boot_time_end_s": 31935.64999999726
+    },
+    "speed_mps": 27.2,
+    "score": {
+      "name": "sideslip_confidence",
+      "value": 2.0
+    },
+    "grade": "C_弱い候補",
+    "detection": {
+      "method": "sideslip_beta_model",
+      "rule": "beta|lat_dynamics",
+      "config_hash": "b980a47791",
+      "created_at": "2026-09-14T05:06:41Z"
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-09-15--17-50-36/77/video.hevc",
+      "can_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-09-15--17-50-36/77/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-09-15--17-50-36/77/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-09-15--17-50-36/77/global_pose",
+      "video_frame_start": 94,
+      "video_frame_end": 183
+    },
+    "attributes": {
+      "platform": "raw_data/Chunk_2",
+      "duration_s": 4.449999999935244,
+      "sideslip_angle_peak_deg": 1.073,
+      "sideslip_angle_peak_sigma": 12.66,
+      "sideslip_angle_excess_peak_deg": -0.816,
+      "yaw_residual_peak_sigma": 3.64,
+      "ay_peak_mps2": -3.417,
+      "sideslip_angle_rate_peak_dps": -1.01,
+      "ax_at_peak_mps2": 0.368,
+      "n_runs": 1,
+      "confidence_items": [
+        "unexplained",
+        "lateral_force"
+      ],
+      "reasons": [
+        "beta",
+        "lat_dynamics"
+      ],
+      "peak_segment": 77,
+      "peak_sec_in_peak_segment": 6.71
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_d03252a795595a60",
+    "event_type": "slip",
+    "detector": "slip_sideslip_beta",
+    "dataset": "comma_car_segments",
+    "vehicle": "toyota_rav4_tss2",
+    "drive_id": "ba062105177e912c|00000017--d07bbdc398",
+    "segment": 4,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 30.46,
+      "end_sec": 35.41,
+      "peak_sec": 32.81,
+      "boot_time_start_s": 324.8000000000204,
+      "boot_time_end_s": 329.7500000000216
+    },
+    "speed_mps": 10.14,
+    "score": {
+      "name": "sideslip_confidence",
+      "value": 4.0
+    },
+    "grade": "C_弱い候補",
+    "detection": {
+      "method": "sideslip_beta_model",
+      "rule": "beta|lat_dynamics",
+      "config_hash": "9bb78e6b6e",
+      "created_at": "2026-09-16T05:01:21Z"
+    },
+    "source": {
+      "can_uri": "comma_car_segments/segments/ba062105177e912c/00000017--d07bbdc398/4/rlog.zst"
+    },
+    "attributes": {
+      "platform": "TOYOTA_RAV4_TSS2",
+      "duration_s": 4.950000000001182,
+      "sideslip_angle_peak_deg": -2.66,
+      "sideslip_angle_peak_sigma": -29.23,
+      "sideslip_angle_excess_peak_deg": -1.022,
+      "yaw_residual_peak_sigma": -14.67,
+      "ay_peak_mps2": -5.336,
+      "sideslip_angle_rate_peak_dps": 3.74,
+      "ax_at_peak_mps2": -2.641,
+      "n_runs": 1,
+      "confidence_items": [
+        "strong_beta",
+        "unexplained",
+        "lateral_force",
+        "corroborated"
+      ],
+      "reasons": [
+        "beta",
+        "lat_dynamics"
+      ],
+      "corroboration": [
+        "ws_anomaly_active",
+        "counter_steer_active"
+      ],
+      "peak_segment": 4,
+      "peak_sec_in_peak_segment": 32.81
+    }
+  }
+]

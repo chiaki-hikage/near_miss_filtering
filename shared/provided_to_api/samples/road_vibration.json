@@ -1,0 +1,494 @@
+[
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_afc68a87b151ff55",
+    "event_type": "road_vibration",
+    "detector": "road_vibration_locate",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-08-15--09-01-03",
+    "chunk": "Chunk_1",
+    "segment": 21,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "imu_accel_first_sample",
+      "start_sec": 29.15,
+      "end_sec": 29.57,
+      "peak_sec": 29.33,
+      "utc": "2018-08-15T16:22:34Z"
+    },
+    "location": {
+      "latitude": 37.683643,
+      "longitude": -122.471319,
+      "heading_deg": 3.6,
+      "gnss_acc_m": 0.35
+    },
+    "speed_mps": 32.444,
+    "score": {
+      "name": "near_miss_candidate_score",
+      "value": 88.4
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "A = sqrt(heave_ratio * max(roll_ratio, pitch_ratio)) >= 3.0",
+      "config_hash": "ce06a1d3af",
+      "criteria": {
+        "candidate_rule": "strong_vertical AND strong_roll AND simultaneous_vertical_roll AND impulsive_response AND road_related_evidence"
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-15--09-01-03/21/video.hevc",
+      "can_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-15--09-01-03/21/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-15--09-01-03/21/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-15--09-01-03/21/global_pose",
+      "video_frame_start": 583,
+      "video_frame_end": 591
+    },
+    "review": {
+      "video_road_feature": "候補: 右輪の通り道を斜めに横切る暗い線 (舗装の継ぎ目か影)"
+    },
+    "attributes": {
+      "position_error": {
+        "along_m": 1.71,
+        "cross_m": 0.35
+      },
+      "hit_sec": 29.28,
+      "vertical_accel_peak_mps2": 7.063,
+      "roll_rate_peak_dps": 16.436,
+      "pitch_rate_peak_dps": 10.313,
+      "heave_roll_dt_s": 0.11,
+      "concentration": 0.884,
+      "rise_s": 0.19,
+      "side_index": -0.849,
+      "repeatability": "1 回のみ",
+      "conditions": {
+        "strong_vertical": true,
+        "strong_roll": true,
+        "simultaneous_vertical_roll": true,
+        "impulsive_response": true,
+        "road_related_evidence": true,
+        "vibration_event": true,
+        "eleven_hz_only": false
+      },
+      "A": 15.31,
+      "heave_ratio": 11.37,
+      "roll_ratio": 20.62,
+      "pitch_ratio": 9.35,
+      "roll_over_pitch": 2.2,
+      "wheel_ratio_max": 30.5,
+      "wheel_lr_log2": -3.24,
+      "wheel_side": "右",
+      "wheel_front_rear_lag_s": 0.08,
+      "wheel_lag_expected_s": 0.08,
+      "heave_dom_hz": 11.5,
+      "vibration_score": 98.2,
+      "site_event_count": 1,
+      "gps_dt_s": 0.021,
+      "ay_range_mps2": 1.01,
+      "wheel_ratio": {
+        "FL": 3.2,
+        "FR": 18.2,
+        "RL": 2.1,
+        "RR": 30.5
+      },
+      "band_ratio": {
+        "heave_3_8hz": 5.95,
+        "heave_8_15hz": 19.6,
+        "roll_3_8hz": 22.31,
+        "roll_8_15hz": 24.21
+      },
+      "flags": {
+        "wheel_lag_match": true,
+        "wheelhop_only": false,
+        "road_band": true,
+        "one_sided": true,
+        "spike_like": false,
+        "brake_any": true
+      },
+      "feature_type": "点状",
+      "physics": {
+        "signal_count": 4,
+        "signals": {
+          "P2": "true",
+          "P4": "true",
+          "P5": "true",
+          "P6": "uncertain"
+        },
+        "consistency": "Partial consistency",
+        "inferred_side": "右片輪入力らしい",
+        "site": {
+          "P1": "—",
+          "P2": "true",
+          "P3": "—",
+          "P4": "true",
+          "P5": "true",
+          "P6": "uncertain"
+        },
+        "event": {
+          "inferred_input": "右片輪入力らしい",
+          "P1": "—",
+          "P2": "true",
+          "P3": "—",
+          "P4": "true",
+          "P5": "true"
+        }
+      },
+      "iso2631": {
+        "mtvv_total_mps2": 2.1731,
+        "mtvv_translational_mps2": 2.1318,
+        "mtvv_x_mps2": 0.4214,
+        "mtvv_y_mps2": 0.9711,
+        "mtvv_z_mps2": 1.8665,
+        "mtvv_rx_seat_mps2": 0.623,
+        "mtvv_ry_seat_mps2": 0.386,
+        "vdv_z_mps175": 3.0371,
+        "vdv_total_mps175": 3.0739,
+        "aw_rms_z_mps2": 0.8779,
+        "crest_factor_z": 8.1981,
+        "mtvv_over_aw_z": 2.126,
+        "dominant_axis": "z",
+        "comfort": "極めて不快",
+        "below_8hz": {
+          "mtvv_z_mps2": 0.6035,
+          "mtvv_total_mps2": 1.28,
+          "comfort": "非常に不快"
+        },
+        "normal_percentile": {
+          "mtvv_total": 100.0,
+          "mtvv_z": 100.0,
+          "vdv_z": 100.0,
+          "mtvv_total_below_8hz": 99.6
+        }
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_92aab011233b0217",
+    "event_type": "road_vibration",
+    "detector": "road_vibration_locate",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-10-05--22-20-31",
+    "chunk": "Chunk_2",
+    "segment": 16,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "imu_accel_first_sample",
+      "start_sec": 46.2,
+      "end_sec": 46.72,
+      "peak_sec": 46.45,
+      "utc": "2018-10-06T05:37:18Z"
+    },
+    "location": {
+      "latitude": 37.726728,
+      "longitude": -122.471957,
+      "heading_deg": 2.5,
+      "gnss_acc_m": 0.41
+    },
+    "speed_mps": 14.722,
+    "score": {
+      "name": "near_miss_candidate_score",
+      "value": 73.6
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "A = sqrt(heave_ratio * max(roll_ratio, pitch_ratio)) >= 3.0",
+      "config_hash": "ce06a1d3af",
+      "criteria": {
+        "candidate_rule": "strong_vertical AND strong_roll AND simultaneous_vertical_roll AND impulsive_response AND road_related_evidence"
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-05--22-20-31/16/video.hevc",
+      "can_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-05--22-20-31/16/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-05--22-20-31/16/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-05--22-20-31/16/global_pose",
+      "video_frame_start": 924,
+      "video_frame_end": 934
+    },
+    "review": {
+      "video_road_feature": "一致: マンホール・補修跡 (右輪の通り道)"
+    },
+    "attributes": {
+      "position_error": {
+        "along_m": 0.96,
+        "cross_m": 0.41
+      },
+      "hit_sec": 46.29,
+      "vertical_accel_peak_mps2": 4.155,
+      "roll_rate_peak_dps": 9.349,
+      "pitch_rate_peak_dps": 5.793,
+      "heave_roll_dt_s": -0.15,
+      "concentration": 0.758,
+      "rise_s": 0.27,
+      "side_index": -0.745,
+      "repeatability": "2 ドライブ以上でイベント",
+      "conditions": {
+        "strong_vertical": true,
+        "strong_roll": true,
+        "simultaneous_vertical_roll": true,
+        "impulsive_response": true,
+        "road_related_evidence": true,
+        "vibration_event": true,
+        "eleven_hz_only": false
+      },
+      "A": 9.44,
+      "heave_ratio": 10.74,
+      "roll_ratio": 8.3,
+      "pitch_ratio": 3.24,
+      "roll_over_pitch": 2.57,
+      "wheel_ratio_max": 34.0,
+      "wheel_lr_log2": -3.31,
+      "wheel_side": "右",
+      "wheel_front_rear_lag_s": 0.19,
+      "wheel_lag_expected_s": 0.18,
+      "heave_dom_hz": 10.9,
+      "vibration_score": 99.2,
+      "site_event_count": 2,
+      "gps_dt_s": 0.023,
+      "ay_range_mps2": 0.28,
+      "wheel_ratio": {
+        "FL": 2.4,
+        "FR": 14.3,
+        "RL": 3.4,
+        "RR": 34.0
+      },
+      "band_ratio": {
+        "heave_3_8hz": 7.08,
+        "heave_8_15hz": 18.7,
+        "roll_3_8hz": 10.02,
+        "roll_8_15hz": 22.7
+      },
+      "flags": {
+        "wheel_lag_match": true,
+        "wheelhop_only": false,
+        "road_band": true,
+        "one_sided": true,
+        "spike_like": false,
+        "brake_any": false
+      },
+      "feature_type": "点状",
+      "physics": {
+        "signal_count": 5,
+        "signals": {
+          "P2": "true",
+          "P4": "true",
+          "P5": "true",
+          "P6": "true"
+        },
+        "consistency": "Strong physical consistency",
+        "inferred_side": "右片輪入力らしい",
+        "site": {
+          "P1": "true",
+          "P2": "true",
+          "P3": "true",
+          "P4": "true",
+          "P5": "true",
+          "P6": "true"
+        },
+        "event": {
+          "inferred_input": "右片輪入力らしい",
+          "P1": "true",
+          "P2": "true",
+          "P3": "true",
+          "P4": "true",
+          "P5": "true"
+        }
+      },
+      "iso2631": {
+        "mtvv_total_mps2": 1.8137,
+        "mtvv_translational_mps2": 1.7941,
+        "mtvv_x_mps2": 0.2796,
+        "mtvv_y_mps2": 0.5496,
+        "mtvv_z_mps2": 1.692,
+        "mtvv_rx_seat_mps2": 0.3483,
+        "mtvv_ry_seat_mps2": 0.3986,
+        "vdv_z_mps175": 2.3093,
+        "vdv_total_mps175": 2.3163,
+        "aw_rms_z_mps2": 0.8199,
+        "crest_factor_z": 5.2749,
+        "mtvv_over_aw_z": 2.0638,
+        "dominant_axis": "z",
+        "comfort": "非常に不快",
+        "below_8hz": {
+          "mtvv_z_mps2": 0.527,
+          "mtvv_total_mps2": 0.8418,
+          "comfort": "不快"
+        },
+        "normal_percentile": {
+          "mtvv_total": 99.8,
+          "mtvv_z": 99.8,
+          "vdv_z": 99.8,
+          "mtvv_total_below_8hz": 94.4
+        }
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_157a2a2a464edcae",
+    "event_type": "road_vibration",
+    "detector": "road_vibration_locate",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-10-09--15-48-37",
+    "chunk": "Chunk_2",
+    "segment": 12,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "imu_accel_first_sample",
+      "start_sec": 12.91,
+      "end_sec": 13.67,
+      "peak_sec": 13.21,
+      "utc": "2018-10-09T23:00:51Z"
+    },
+    "location": {
+      "latitude": 37.595364,
+      "longitude": -122.418405,
+      "heading_deg": 322.1,
+      "gnss_acc_m": 0.47
+    },
+    "speed_mps": 32.667,
+    "score": {
+      "name": "near_miss_candidate_score",
+      "value": 72.9
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "A = sqrt(heave_ratio * max(roll_ratio, pitch_ratio)) >= 3.0",
+      "config_hash": "ce06a1d3af",
+      "criteria": {
+        "candidate_rule": "strong_vertical AND strong_roll AND simultaneous_vertical_roll AND impulsive_response AND road_related_evidence"
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-09--15-48-37/12/video.hevc",
+      "can_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-09--15-48-37/12/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-09--15-48-37/12/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_2/b0c9d2329ad1606b|2018-10-09--15-48-37/12/global_pose",
+      "video_frame_start": 258,
+      "video_frame_end": 273
+    },
+    "review": {
+      "video_road_feature": "一致: 横断方向の継ぎ目・亀裂 (両輪)"
+    },
+    "attributes": {
+      "position_error": {
+        "along_m": 1.76,
+        "cross_m": 0.47
+      },
+      "hit_sec": 13.02,
+      "vertical_accel_peak_mps2": 4.423,
+      "roll_rate_peak_dps": 4.657,
+      "pitch_rate_peak_dps": 5.656,
+      "heave_roll_dt_s": -0.13,
+      "concentration": 0.802,
+      "rise_s": 0.3,
+      "side_index": -0.779,
+      "repeatability": "再現 (偶然なら 1% 未満)",
+      "conditions": {
+        "strong_vertical": true,
+        "strong_roll": true,
+        "simultaneous_vertical_roll": true,
+        "impulsive_response": true,
+        "road_related_evidence": true,
+        "vibration_event": true,
+        "eleven_hz_only": false
+      },
+      "A": 8.66,
+      "heave_ratio": 8.67,
+      "roll_ratio": 7.25,
+      "pitch_ratio": 8.65,
+      "roll_over_pitch": 0.84,
+      "wheel_ratio_max": 8.0,
+      "wheel_lr_log2": -1.21,
+      "wheel_side": "右",
+      "wheel_front_rear_lag_s": 0.1,
+      "wheel_lag_expected_s": 0.08,
+      "heave_dom_hz": 1.8,
+      "vibration_score": 89.2,
+      "site_event_count": 8,
+      "gps_dt_s": 0.006,
+      "ay_range_mps2": 0.68,
+      "wheel_ratio": {
+        "FL": 3.4,
+        "FR": 5.7,
+        "RL": 2.9,
+        "RR": 8.0
+      },
+      "band_ratio": {
+        "heave_3_8hz": 4.73,
+        "heave_8_15hz": 4.2,
+        "roll_3_8hz": 4.32,
+        "roll_8_15hz": 4.5
+      },
+      "flags": {
+        "wheel_lag_match": true,
+        "wheelhop_only": false,
+        "road_band": true,
+        "one_sided": true,
+        "spike_like": false,
+        "brake_any": false
+      },
+      "feature_type": "点状",
+      "physics": {
+        "signal_count": 4,
+        "signals": {
+          "P2": "true",
+          "P4": "uncertain",
+          "P5": "true",
+          "P6": "true"
+        },
+        "consistency": "Not explained",
+        "inferred_side": "右片輪入力らしい",
+        "site": {
+          "P1": "false",
+          "P2": "true",
+          "P3": "false",
+          "P4": "uncertain",
+          "P5": "true",
+          "P6": "true"
+        },
+        "event": {
+          "inferred_input": "右片輪入力らしい",
+          "P1": "uncertain",
+          "P2": "false",
+          "P3": "false",
+          "P4": "false",
+          "P5": "true"
+        }
+      },
+      "iso2631": {
+        "mtvv_total_mps2": 1.2829,
+        "mtvv_translational_mps2": 1.2678,
+        "mtvv_x_mps2": 0.4542,
+        "mtvv_y_mps2": 0.401,
+        "mtvv_z_mps2": 1.123,
+        "mtvv_rx_seat_mps2": 0.2473,
+        "mtvv_ry_seat_mps2": 0.3114,
+        "vdv_z_mps175": 1.4109,
+        "vdv_total_mps175": 1.4249,
+        "aw_rms_z_mps2": 0.5799,
+        "crest_factor_z": 4.7695,
+        "mtvv_over_aw_z": 1.9365,
+        "dominant_axis": "z",
+        "comfort": "非常に不快",
+        "below_8hz": {
+          "mtvv_z_mps2": 0.9957,
+          "mtvv_total_mps2": 1.1721,
+          "comfort": "不快"
+        },
+        "normal_percentile": {
+          "mtvv_total": 98.4,
+          "mtvv_z": 98.6,
+          "vdv_z": 95.6,
+          "mtvv_total_below_8hz": 99.5
+        }
+      }
+    }
+  }
+]

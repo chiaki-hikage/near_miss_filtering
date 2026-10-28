@@ -1,0 +1,121 @@
+# canonical event (API 連携用の共通形式) の書き出し設定。
+# scripts/export_near_miss_canonical.py が読む。仕様は docs/near_miss_canonical_schema.md。
+#
+# 既存の CSV を読むだけで、書き換えない。入力のパスはすべてリポジトリからの相対パス。
+
+out_dir: out/near_miss_canonical
+schema: schemas/near_miss_event.schema.json
+raw_root: raw_data          # comma2k19 のチャンクの対応を引く (Chunk_*/<drive_id>/)
+vehicles_dir: configs/vehicles
+
+video:
+  fps: 20                   # comma2k19 の前方映像
+  frames_per_segment: 1200  # 60 秒 × 20 fps。これを超えるフレーム番号は null にする
+
+# source.*_uri の先頭のディレクトリ名。URI は「データのルート」からの相対パスで、
+# S3 の配置 (s3://<バケット>/near_miss/<ここ>/...、docs/environment.md) と同じ形にしてある。
+# --uri-base s3://<バケット>/near_miss/ を付けると、それだけで解決できる URI になる。
+source_roots:
+  comma2k19: comma2k19
+  comma_car_segments: comma_car_segments
+
+# 手元で URI を読み替える先 (実在の検査に使う)。comma2k19 はチャンクが raw_data/ の直下にある
+uri_local_roots:
+  comma2k19: raw_data
+  comma_car_segments: raw_data/comma_car_segments
+
+sample:
+  per_event_type: 3         # sample_events.json に種別ごとに何件入れるか
+  # スコアが無い (または同点の) ときの並び。スリップの等級 (docs/sideslip_filter.md 5・9 章)
+  grade_order: [multi_evidence, A_大横滑り, high_evidence, B_要確認, activation_only, physics_only, C_弱い候補]
+
+detectors:
+  # --- 既存の L3 ルール (急ブレーキ・急操舵) ------------------------------
+  # event_types: L3 の event_type → canonical の event_type。ここに無い種別は変換しない
+  l3_comma2k19:
+    kind: l3
+    detector: l3_rules
+    dataset: comma2k19
+    events: out/l1_l3/c2k19/events.csv
+    # 区間内の特徴量の代表値 (候補単位)。イベントを含む候補を 1 つ引く
+    candidates_detail: [out/chunk1_v3/candidates.csv, out/chunk2_v3/candidates.csv]
+    # 段ごとのフラグ (final など)
+    candidates_flags: out/l1_l3/c2k19/candidates.csv
+    run_meta: [out/chunk1_v3/run_meta.json, out/chunk2_v3/run_meta.json]
+    labels: [out/chunk1/labels.csv, out/chunk2_final/labels.csv]
+    reference: docs/event_detection_spec.md
+    event_types: {hard_brake: hard_braking, hard_steer: hard_steering}
+
+  l3_comma_car_segments:
+    kind: l3
+    detector: l3_rules
+    dataset: comma_car_segments
+    events: out/l1_l3/ccs/events.csv
+    candidates_detail:
+      - out/screen_TOYOTA_RAV4_TSS2_2k_v4/candidates.csv
+      - out/screen_TOYOTA_COROLLA_TSS2_2k_v4/candidates.csv
+      - out/screen_TOYOTA_HIGHLANDER_TSS2_2k_v4/candidates.csv
+      - out/screen_TOYOTA_PRIUS_2k_v4/candidates.csv
+    candidates_flags: out/l1_l3/ccs/candidates.csv
+    run_meta:
+      - out/screen_TOYOTA_RAV4_TSS2_2k_v4/screen_meta.json
+      - out/screen_TOYOTA_COROLLA_TSS2_2k_v4/screen_meta.json
+      - out/screen_TOYOTA_HIGHLANDER_TSS2_2k_v4/screen_meta.json
+      - out/screen_TOYOTA_PRIUS_2k_v4/screen_meta.json
+    labels: []
+    reference: docs/event_detection_spec.md
+    event_types: {hard_brake: hard_braking, hard_steer: hard_steering}
+
+  # --- スリップ -----------------------------------------------------------
+  # 直接証拠の枝 (等級の改訂後、2026-09-16 の v3)。ディレクトリごとに counts.json がある
+  slip_direct:
+    kind: slip_direct
+    detector: slip_direct_evidence
+    event_type: slip
+    dirs:
+      - out/sideslip_TOYOTA_RAV4_TSS2_v3
+      - out/sideslip_TOYOTA_COROLLA_TSS2_v3
+      - out/sideslip_TOYOTA_HIGHLANDER_TSS2_v3
+      - out/sideslip_TOYOTA_PRIUS_v3
+    file: direct_slip.csv
+    reference: docs/sideslip_filter.md 9 章
+
+  # 横滑り角 beta の枝
+  slip_beta:
+    kind: slip_beta
+    detector: slip_sideslip_beta
+    event_type: slip
+    dirs:
+      - out/sideslip_TOYOTA_RAV4_TSS2_v3
+      - out/sideslip_TOYOTA_COROLLA_TSS2_v3
+      - out/sideslip_TOYOTA_HIGHLANDER_TSS2_v3
+      - out/sideslip_TOYOTA_PRIUS_v3
+      - out/sideslip_chunk1_v2
+      - out/sideslip_chunk2_v2
+    file: candidates.csv
+    reference: docs/sideslip_filter.md 5 章
+
+  # --- 路面凹凸による異常振動 ---------------------------------------------
+  road_vibration:
+    kind: road_vibration
+    detector: road_vibration_locate
+    event_type: road_vibration
+    locate: out/vibration/locate/candidates.csv
+    near_miss: out/vibration/near_miss/near_miss_vibration_events.csv
+    iso2631: out/vibration/near_miss/iso2631_events.csv
+    # 物理評価。両方にある event / site は値が一致することを確かめてから使う (先頭を優先)
+    physics_event: [out/vibration/physics_validation_near_miss/event_physics_validation.csv,
+                    out/vibration/physics_validation/event_physics_validation.csv]
+    physics_site: [out/vibration/physics_validation_near_miss/site_physics_validation.csv,
+                   out/vibration/physics_validation/site_physics_validation.csv]
+    physics_signals: out/vibration/near_miss/physics_vs_video_sites.csv
+    locate_meta: out/vibration/locate/meta.json
+    near_miss_meta: out/vibration/near_miss/meta.json
+    physics_meta: out/vibration/physics_validation_near_miss/meta.json
+    media_dirs: [out/vibration/near_miss/media, out/vibration/locate/media]
+    review_source: out/vibration/locate/review_video.csv
+    # 異常振動ヒヤリハット候補 = 次の 5 列がすべて true (docs/vibration_near_miss_candidates.md 1 章)
+    candidate_columns: [strong_vertical, strong_roll, simultaneous_vertical_roll, impulsive_response, road_related_evidence]
+    # 振動イベントの検出条件 (score_longtail.py の find_events)。値は configs/vibration.yaml の longtail.a_min
+    event_rule: "A = sqrt(heave_ratio * max(roll_ratio, pitch_ratio)) >= longtail.a_min"
+    reference: docs/vibration_near_miss_candidates.md

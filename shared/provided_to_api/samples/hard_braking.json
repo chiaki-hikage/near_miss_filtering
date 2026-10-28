@@ -1,0 +1,234 @@
+[
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_55ac5dfbbc728596",
+    "event_type": "hard_braking",
+    "detector": "l3_rules",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-07-30--13-44-30",
+    "chunk": "Chunk_1",
+    "segment": 12,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 18.5,
+      "end_sec": 19.9,
+      "boot_time_start_s": 13116.449999994502,
+      "boot_time_end_s": 13117.849999994482
+    },
+    "score": {
+      "name": "candidate_severity",
+      "value": 8.819775383075225
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "ax_mps2 lt -2.5",
+      "config_hash": "231eee1fe6",
+      "created_at": "2026-09-14T07:07:58Z",
+      "criteria": {
+        "feature": "ax_mps2",
+        "op": "lt",
+        "threshold": -2.5,
+        "stage": 1,
+        "weight": 1.0
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/12/video.hevc",
+      "can_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/12/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/12/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-07-30--13-44-30/12/global_pose",
+      "video_frame_start": 370,
+      "video_frame_end": 398
+    },
+    "review": {
+      "risky": false,
+      "verdict": "通常運転",
+      "note": "ブレーキ場面ではあるが急ブレーキというほどではない"
+    },
+    "attributes": {
+      "source_event_type": "hard_brake",
+      "label": "急ブレーキ",
+      "ax_min_mps2": -3.0826284837195495,
+      "threshold": -2.5,
+      "exceedance": 0.5826284837195495,
+      "duration_s": 1.399999999979627,
+      "candidate_window": {
+        "speed_mean_mps": 13.90483020657819,
+        "speed_min_mps": 7.388211096775677,
+        "severity": 8.819775383075225,
+        "n_events": 4,
+        "ax_min_mps2": -3.0826284837195495,
+        "jerk_min_mps3": -5.69505324487217,
+        "jerk_win_min_mps3": -5.69505324487217,
+        "jerk_win_mean_min_mps3": -5.050890073043907,
+        "brake_pressed_max": 1.0,
+        "gvc_min_mps2": -2.914320464018719,
+        "gas_pedal_max_pct": 50.0,
+        "decel_flag_max": 1.0,
+        "event_types": [
+          "cut_in_candidate",
+          "hard_brake",
+          "panic_brake_pedal",
+          "short_thw"
+        ]
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_b96a9861c933919d",
+    "event_type": "hard_braking",
+    "detector": "l3_rules",
+    "dataset": "comma_car_segments",
+    "vehicle": "toyota_rav4_tss2",
+    "drive_id": "63e74ebb84173067|0000009c--84e520ce41",
+    "segment": 2,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 25.67,
+      "end_sec": 27.82,
+      "boot_time_start_s": 108916.40000000496,
+      "boot_time_end_s": 108918.55000000508
+    },
+    "score": {
+      "name": "candidate_severity",
+      "value": 29.715024630541873
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "ax_mps2 lt -2.5",
+      "config_hash": "9bb78e6b6e",
+      "created_at": "2026-09-17T04:09:38Z",
+      "criteria": {
+        "feature": "ax_mps2",
+        "op": "lt",
+        "threshold": -2.5,
+        "stage": 1,
+        "weight": 1.0
+      }
+    },
+    "source": {
+      "can_uri": "comma_car_segments/segments/63e74ebb84173067/0000009c--84e520ce41/2/rlog.zst"
+    },
+    "attributes": {
+      "source_event_type": "hard_brake",
+      "label": "急ブレーキ",
+      "platform": "TOYOTA_RAV4_TSS2",
+      "ax_min_mps2": -11.432143442401372,
+      "threshold": -2.5,
+      "exceedance": 8.932143442401372,
+      "duration_s": 2.1500000001251465,
+      "candidate_window": {
+        "speed_mean_mps": 6.539521924063586,
+        "speed_min_mps": 0.0,
+        "severity": 29.715024630541873,
+        "n_events": 8,
+        "ax_min_mps2": -11.432143442401372,
+        "jerk_min_mps3": -42.01485983528199,
+        "jerk_win_min_mps3": -42.01485983528199,
+        "jerk_win_mean_min_mps3": -26.680037370119596,
+        "brake_pressed_max": 1.0,
+        "gvc_min_mps2": -5.12,
+        "brake_mc_max_mpa": 9.918810099976488,
+        "brake_position_max": 453.33990046311334,
+        "abs_active_max": 1.0,
+        "vsc_active_max": 0.0,
+        "precollision_active_max": 1.0,
+        "precollision_force_min_n": 0.0,
+        "acc_braking_max": 1.0,
+        "event_types": [
+          "abs_active",
+          "aeb_active",
+          "hard_brake",
+          "low_ttc",
+          "panic_brake",
+          "panic_brake_with_lead",
+          "slip_warn_active",
+          "wheel_speed_anomaly"
+        ]
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_id": "nm_f2abfa3c4b912e9f",
+    "event_type": "hard_braking",
+    "detector": "l3_rules",
+    "dataset": "comma2k19",
+    "vehicle": "toyota_rav4",
+    "drive_id": "b0c9d2329ad1606b|2018-08-02--08-34-47",
+    "chunk": "Chunk_1",
+    "segment": 39,
+    "time": {
+      "base": "segment_relative_s",
+      "segment_origin": "can_primary_overlap_start",
+      "start_sec": 21.62,
+      "end_sec": 22.57,
+      "boot_time_start_s": 46370.20000003615,
+      "boot_time_end_s": 46371.15000003621
+    },
+    "score": {
+      "name": "candidate_severity",
+      "value": 7.079776510191305
+    },
+    "candidate_flag": true,
+    "detection": {
+      "method": "rule_threshold",
+      "rule": "ax_mps2 lt -2.5",
+      "config_hash": "231eee1fe6",
+      "created_at": "2026-09-14T07:07:58Z",
+      "criteria": {
+        "feature": "ax_mps2",
+        "op": "lt",
+        "threshold": -2.5,
+        "stage": 1,
+        "weight": 1.0
+      }
+    },
+    "source": {
+      "video_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/39/video.hevc",
+      "can_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/39/processed_log/CAN",
+      "imu_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/39/processed_log/IMU",
+      "gnss_uri": "comma2k19/Chunk_1/b0c9d2329ad1606b|2018-08-02--08-34-47/39/global_pose",
+      "video_frame_start": 432,
+      "video_frame_end": 451
+    },
+    "review": {
+      "risky": true,
+      "verdict": "ヒヤリハット",
+      "note": "バスが車線変更しようとして急ブレーキも踏んでおりヒヤリと呼べる"
+    },
+    "attributes": {
+      "source_event_type": "hard_brake",
+      "label": "急ブレーキ",
+      "ax_min_mps2": -2.699441275478262,
+      "threshold": -2.5,
+      "exceedance": 0.1994412754782626,
+      "duration_s": 0.9500000000552972,
+      "candidate_window": {
+        "speed_mean_mps": 8.70638286622742,
+        "speed_min_mps": 5.958833571740868,
+        "severity": 7.079776510191305,
+        "n_events": 3,
+        "ax_min_mps2": -2.699441275478262,
+        "jerk_min_mps3": -4.964990966434968,
+        "jerk_win_min_mps3": -4.964990966434968,
+        "jerk_win_mean_min_mps3": -4.322786734527243,
+        "brake_pressed_max": 1.0,
+        "gvc_min_mps2": -2.76,
+        "gas_pedal_max_pct": 50.0,
+        "decel_flag_max": 1.0,
+        "event_types": [
+          "cut_in_candidate",
+          "hard_brake",
+          "panic_brake_pedal"
+        ]
+      }
+    }
+  }
+]
