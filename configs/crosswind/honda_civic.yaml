@@ -1,0 +1,55 @@
+# Honda Civic (comma2k19 Chunk 3-10)
+#
+# 横風の解析用に、検証が済むまで configs/vehicles/ の外に置く。
+# configs/vehicles/ に置くと、全車種の設定を含む config_hash が変わり、
+# 既存のパイプラインが Chunk 3-10 を「車種設定あり」として扱うようになるため。
+# 形式は configs/vehicles/*.yaml と同じ (near_miss.config.VehicleConfig.from_dict で読める)。
+#
+# 当てはめと確認の記録: out/crosswind/civic_bicycle_fit/ (fit_result.json, README.md)
+# 信号の確認の記録:     out/crosswind/civic_signal_check/
+
+name: honda_civic
+description: "Honda Civic (comma2k19)。年式は未確認 (README・raw_log に記載なし)"
+dongle_ids:
+  - 99c94dc769b5d96e
+
+# ヨーレートの出所 (RAV4 と違う)。
+#   Honda の opendbc にヨーレートの信号は無い (横加速度 0x94 / 0x1EA のみ)。
+#   IMU の gyro を使う。processed_log/IMU/gyro は端末の gyro_bias を引いた後でも
+#   走行中に数 deg/s までずれが残りドリフトするので (停車時にしか更新されない)、
+#   ドライブ内で (gyro z − global_pose の速度方位の変化率) の 60 s 移動中央値を
+#   時変バイアスとして引いた値を使う。
+#   停車区間で照合した推定誤差: 中央値 +0.014 deg/s、ロバスト σ 0.062 deg/s (62 区間)
+#   符号: 傾きを戻した gyro z は右回り正。ヨーレート (左回り正) = -(gz - bias)
+#   舵角 (processed_log/CAN/steering_angle) は左正。ヨーレートと同じ向き。
+yaw_source:
+  kind: imu_gyro_bias_corrected
+  bias_window_s: 60
+  bias_reference: global_pose_velocity_heading_rate
+
+geometry:
+  # opendbc (opendbc/car/honda/values.py) の HONDA_CIVIC (Civic 2016-18) の値。
+  # このデータの車両がその型式かは未確認なので、仮置きである。
+  # ただしヨーの予測と残差は SR·L と SR·Kus の積だけで決まり、L の値には依存しない。
+  # L を確かめた値に差し替えるときは、SR = 41.84 / L、Kus = 0.02380 / SR で求め直す。
+  wheelbase_m: 2.70
+  # 線形単軌道モデルの当てはめで実測した値 (RAV4 と同じ式・条件)。
+  #   δsw = SR·L·(r/v) + SR·Kus·(v·r) + δoffset
+  #   弱風 (風速 3.1 m/s 以下・突風 5.2 m/s 以下) の 150 セグメント / 47 ドライブ、
+  #   車速 10 m/s 超、|横躍度| < 0.5、|ヨーレート| > 1 deg/s の 41,536 点。舵角の R² = 0.988
+  #   SR·L = 41.84 m、SR·Kus = 0.02380 s²
+  #   SR は opendbc の 15.38 と 0.8% 差 (CAN 車速が GNSS より 1.0% 大きい分を戻すと 15.35)
+  steer_ratio: 15.50
+  understeer_gradient: 0.001536   # rad·s²/m。前輪換算で約 0.86 deg/g
+  steer_offset_deg: -0.198
+  # 残差 (実測 − 予測) の標準偏差。ドライブ単位 5 分割の交差検証で求めた値。
+  #   当てはめた点での値は 0.240、直進 (|r| ≤ 1 deg/s) では 0.180 deg/s
+  yaw_residual_std_dps: 0.244
+  track_width_m: null             # 未実測
+  center_to_front_m: null         # carParams が無い。未確認
+
+signals: {}
+
+openpilot_tx:
+  src_tx_flag: 128
+  control_addresses: []           # Honda の制御メッセージは未確認

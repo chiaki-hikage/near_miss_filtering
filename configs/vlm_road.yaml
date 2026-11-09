@@ -1,0 +1,65 @@
+# 路面凹凸の確認タスク (VLM)。振動イベントの当たり地点に、凹凸が写っているかを見る。
+#
+# モデル・復号・adapter は configs/vlm.yaml (base_config) と共通。
+# ここに書くのは、このタスクに固有の入力の作り方・prompt・対照の取り方だけ。
+#   uv run python scripts/vlm/build_road_inputs.py    入力を作る (GPU 不要)
+#   uv run python scripts/vlm/run_vlm_review.py --mode road --model qwen2_5_vl_7b
+#   uv run python scripts/vlm/score_road_review.py
+# 説明は docs/vlm_road_review.md。
+#
+# **モデルにはイベントか対照かを伝えない。** 振動の強さ・候補かどうか・物理シグナル・
+# 以前の目視判定も入れない。対照の地点にも同じ文面・同じ形の入力を渡し、
+# 「何を見ても凹凸ありと答える」状態を測れるようにする。
+
+base_config: configs/vlm.yaml
+
+prompt_version: road_v1
+prompts:
+  road: configs/prompts/vlm_road_v1.md
+
+# 画像の列として渡す。フレームは時刻ではなく「目標地点までの距離」で選ぶので
+# 間隔が車速で変わり、動画の fps として書けない。各画像の距離は見出しで渡す。
+media_kind: images
+
+repeats:
+  mode_road: 1               # temperature 0 (configs/vlm.yaml の decode)
+
+road:
+  events: out/vibration/near_miss/near_miss_vibration_events.csv   # 振動イベント (event_time_s = 前輪の当たり時刻)
+  candidate_columns: [strong_vertical, strong_roll, simultaneous_vertical_roll, impulsive_response, road_related_evidence]
+  physics_sites: out/vibration/near_miss/physics_vs_video_sites.csv  # 採点で使う (モデルには渡さない)
+  # 時刻の原点: event_time_s は segment の IMU 加速度計の先頭サンプルからの秒
+  # (rank_near_miss_vibration.py → locate_candidates.py と同じ)。フレームは global_pose/frame_times で引く
+
+  targets: all               # all = 全振動イベント / candidates = 5 条件の候補だけ
+  conditions:
+    R: {overlay: false, note: "印なし"}
+    O: {overlay: true,  note: "車輪の通り道と推定位置の印あり"}
+
+  # 目標地点がカメラから前方この距離に見えるフレームを 1 枚ずつ選ぶ。
+  # 以前の目視判定 (locate_candidates.py の frame_ahead_m) は 12 m と 6 m の 2 枚。
+  ahead_m: [20.0, 15.0, 11.0, 8.0, 5.0]
+  max_frame_gap_s: 0.05      # 選んだフレームが狙いの時刻からこれ以上ずれたら、その 1 枚を捨てる
+
+  # 切り出し (元画像 1164×874 の画素)。路面と自車線の周りだけを残す。
+  # 以前の目視判定と同じ範囲 (列 250〜1100・行 420〜720)。縮小はしない (細いひびが消えるため)
+  crop: {col: [250, 1100], row: [420, 720]}
+  jpeg_quality: 92
+
+  camera:
+    fit: out/vibration/pavement/site19_camera_fit.yaml   # horizon_row・K・camera_behind_front_axle_m
+    focal_px: 910.0          # configs/vibration_pavement.yaml の camera.focal_px
+    center_col: 582          # 1164 列の中央 (locate_candidates.IMG_CENTER_COL)
+  track_m: 1.570             # configs/vibration_fullcar.yaml の vehicle.track_front_m
+  marker_d_range_m: [3.5, 40.0]   # 車輪の通り道を描く距離の範囲
+
+  # 対照: 振動イベントの無い時刻。イベントのあるセグメントから選ぶので映像の追加取得は要らない
+  control:
+    n: 300
+    seed: 0
+    min_gap_s: 5.0           # 同じドライブのどの振動イベントからもこれ以上離す
+    min_speed_mps: 5.0       # 振動イベントの検出と同じ下限
+    t_range_s: [5.0, 55.0]   # セグメント内の秒 (前後のセグメントが無くても 20 m 先が見えるように)
+
+  daylight_local_h: [7, 19]  # 採点の層別に使う (configs/vibration_locate.yaml と同じ)
+  local_utc_offset_h: -7
