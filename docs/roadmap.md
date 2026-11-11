@@ -30,7 +30,7 @@ C&A (FY26 2H) の目標のうち、このリポジトリが受け持つテーマ
 | F | 突風・横風による走行不安定 | 1-(2) | 調査中 | comma2k19 (Civic・RAV4) と comma1M では、横風と合理的に言えるイベントは見つからなかった。検証に使える公開データセットを調査中 (2026-11-10〜11) | 使うデータセットを決める (未設定) | `docs/crosswind_civic_feasibility.md`、`docs/crosswind_wind_data.md`、`out/crosswind/xwind_search/README.md`、`out/crosswind/c1m_search/README.md` |
 | G | ブレーキフェード | 1-(2) | 未着手 | 説明用の図だけがある (`shared/fade_illust.jpeg`)。解析はリポジトリに無い | 未設定 | — |
 | H | AI 駆動開発の事例・ノウハウ | 2 | 進行中 | 事例の記録を始めた (2026-11-11) | 未設定 | `reports/ca/` |
-| — | 実験・報告の管理 | (共通) | 進行中 | 構成文書、実験索引、週次報告の仕組みを整備 (2026-11-11) | `main` への統合の判断 (未設定) | `docs/project_structure.md`、`experiments/README.md`、`reports/README.md` |
+| — | 実験・報告の管理 | (共通) | 進行中 | 構成文書、実験索引、週次報告の仕組みを整備し、main に統合 (2026-11-11)。週次スライドの作り方を skill にした | 週次スライドの skill を使いながら直す (未設定) | `docs/project_structure.md`、`experiments/README.md`、`reports/README.md`、`.claude/skills/weekly-slides/SKILL.md` |
 
 ## 3. 保留・判断待ち
 

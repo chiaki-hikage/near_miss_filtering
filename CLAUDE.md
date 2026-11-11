@@ -65,6 +65,7 @@ CAN、IMU、GNSSなどのセンサ時系列から、急ブレーキ、急操舵�
 * 長期の状況: `docs/roadmap.md` / セッション間の引き継ぎ: `claude-progress.md`
 * 実験結果の索引: `experiments/index.csv` (列の意味は `experiments/README.md`)
 * 報告資料の作り方: `reports/README.md` (週次報告は `reports/weekly/`、AI 活用の事例は `reports/ca/`)
+* 週次スライド: skill `weekly-slides`。作る時期はユーザーが指定し、構成案に合意してから作る
 
 セッションの開始時
 
