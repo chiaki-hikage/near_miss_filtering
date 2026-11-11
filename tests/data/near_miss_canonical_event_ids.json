@@ -1,0 +1,113 @@
+{
+ "note": "canonical event schema 1.0 の event_id の基準値 (2026-10-28 の出力から。修正の前後で変わらないことを確かめる)",
+ "events": [
+  {
+   "event_id": "nm_55ac5dfbbc728596",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-07-30--13-44-30",
+   "segment": 12,
+   "start_sec": 18.5,
+   "event_type": "hard_braking",
+   "detector": "l3_rules"
+  },
+  {
+   "event_id": "nm_f2abfa3c4b912e9f",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-08-02--08-34-47",
+   "segment": 39,
+   "start_sec": 21.62,
+   "event_type": "hard_braking",
+   "detector": "l3_rules"
+  },
+  {
+   "event_id": "nm_b96a9861c933919d",
+   "dataset": "comma_car_segments",
+   "drive_id": "63e74ebb84173067|0000009c--84e520ce41",
+   "segment": 2,
+   "start_sec": 25.67,
+   "event_type": "hard_braking",
+   "detector": "l3_rules"
+  },
+  {
+   "event_id": "nm_90f71a4ef9a8489d",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-07-30--13-44-30",
+   "segment": 11,
+   "start_sec": 15.9,
+   "event_type": "hard_steering",
+   "detector": "l3_rules"
+  },
+  {
+   "event_id": "nm_11dade7bd1cf8e7a",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-08-02--08-34-47",
+   "segment": 37,
+   "start_sec": 36.86,
+   "event_type": "hard_steering",
+   "detector": "l3_rules"
+  },
+  {
+   "event_id": "nm_2f08790e26686ea7",
+   "dataset": "comma_car_segments",
+   "drive_id": "8bb58ef0f2d612b7|0000038a--672206e0ac",
+   "segment": 33,
+   "start_sec": 6.32,
+   "event_type": "hard_steering",
+   "detector": "l3_rules"
+  },
+  {
+   "event_id": "nm_afc68a87b151ff55",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-08-15--09-01-03",
+   "segment": 21,
+   "start_sec": 29.15,
+   "event_type": "road_vibration",
+   "detector": "road_vibration_locate"
+  },
+  {
+   "event_id": "nm_92aab011233b0217",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-10-05--22-20-31",
+   "segment": 16,
+   "start_sec": 46.2,
+   "event_type": "road_vibration",
+   "detector": "road_vibration_locate"
+  },
+  {
+   "event_id": "nm_157a2a2a464edcae",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-10-09--15-48-37",
+   "segment": 12,
+   "start_sec": 12.91,
+   "event_type": "road_vibration",
+   "detector": "road_vibration_locate"
+  },
+  {
+   "event_id": "nm_0d4d92c021ff3b2d",
+   "dataset": "comma2k19",
+   "drive_id": "b0c9d2329ad1606b|2018-09-15--17-50-36",
+   "segment": 77,
+   "start_sec": 4.71,
+   "event_type": "slip",
+   "detector": "slip_sideslip_beta"
+  },
+  {
+   "event_id": "nm_1486418d4680e755",
+   "dataset": "comma_car_segments",
+   "drive_id": "92e53d23b211c104|0000004e--743df4d5df",
+   "segment": 31,
+   "start_sec": 46.71,
+   "event_type": "slip",
+   "detector": "slip_direct_evidence"
+  },
+  {
+   "event_id": "nm_d03252a795595a60",
+   "dataset": "comma_car_segments",
+   "drive_id": "ba062105177e912c|00000017--d07bbdc398",
+   "segment": 4,
+   "start_sec": 30.46,
+   "event_type": "slip",
+   "detector": "slip_sideslip_beta"
+  }
+ ]
+}

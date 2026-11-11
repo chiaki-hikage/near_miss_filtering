@@ -18,7 +18,9 @@ out/chunk1/vlm/*
 !out/chunk1/vlm/labels_onset.csv
 !out/chunk1/vlm/labels_onset.md
 
-data/
+# 先頭の / でリポジトリ直下の data/ だけに限る。/ が無いと tests/data/
+# (試験の基準値) まで除外されてしまう。
+/data/
 .pytest_cache/
 raw_data/
 .venv/

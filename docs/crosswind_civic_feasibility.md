@@ -543,6 +543,8 @@ v·W_left を説明変数にした当てはめも行ったが、結論は同じ�
 
 ### 解析（`out/` は git の管理外。各ディレクトリに使ったスクリプトの写しと README を置いた）
 
+> 2026-11-11 追記: スクリプトは内容を変えずに `scripts/crosswind/<ディレクトリ名>/` へ移した（`out/crosswind/civic_v2/scripts/` → `scripts/crosswind/civic_v2/` など）。この節の旧パスは記録として残している。対応表は `scripts/crosswind/path_map.csv`。
+
 | ディレクトリ | 章 | 主な出力 |
 |---|---|---|
 | `out/crosswind/civic_signal_check/` | 2・3 | `per_segment.csv`、`samples_5hz.csv.gz` |
