@@ -67,7 +67,7 @@ near_miss_filtering/
 | `report/` | 集計・段ごとの比較・API 用サンプルの出力・結果の索引 | `report_final.py`, `export_api_samples.py`, `build_experiment_index.py` |
 | `vlm/` | VLM 判定の入力作成・実行・採点 | `build_vlm_inputs.py`, `run_vlm_review.py` |
 | `vibration/` | 路面振動の解析 (フルカーモデル、ISO 2631、路面の特定) | `locate_candidates.py`, `fullcar.py` |
-| `crosswind/` | 横風の解析。解析ごとのサブフォルダ (`xwind_search/`, `civic_v2/`, `c1m_search/` など 7 つ) | `xwind_search/rank.py` |
+| `crosswind/` | 横風の解析。解析ごとのサブフォルダ (`xwind_search/`, `civic_v2/`, `c1m_search/`, `civic_selection/` など 8 つ) | `xwind_search/rank.py` |
 
 - `scripts/vibration/` の `fullcar.py`、`iso2631.py` などは、ほかのスクリプトと `tests/` から import される部品でもある。
 - `scripts/crosswind/` のスクリプトは、各解析で実際に使ったものを内容を変えずに移したもの (§6)。解析ごとに同じ名前で中身の違うファイル (`windows.py`, `fit.py` など) があるので、サブフォルダを分けている。直下に `.py` は置かない (`sys.path` に入るため、ほかのスクリプトと名前がぶつかる)。詳しくは `scripts/crosswind/README.md`。
@@ -222,7 +222,7 @@ git 管理外。次の 2 種類を置く。
 | 6 | `configs/` | 横風は `crosswind/` のサブフォルダ、路面振動は直下に `vibration_*.yaml` が 6 本 | 同じ種類の設定で置き方がそろっていない | 承認待ち (提案 6) |
 | 7 | `scripts/` 直下 | `export_near_miss_canonical.py` と `demo_sideslip.sh` が役割別のフォルダに入っていない | 小さい問題 | 未提案 |
 | 8 | `shared/` | 動画・pptx・PDF などのバイナリを git で持っている (202 MB) | リポジトリが重くなる。更新のたびに履歴が増える | 承認待ち (提案 7) |
-| 9 | `data/comma2k19_civic/_selection/` | セグメントを選んだスクリプト (`pick_civic_segments.py`) と、風のデータを集めたスクリプト (`wind/collect.py`, `wind/remote_zip.py`) が `data/` の下にある (2026-11-11 に見つけた) | ずれ 1 と同じで、git に入っていない | 未提案。今回の整理の対象外 |
+| 9 | `data/comma2k19_civic/_selection/` | セグメントを選んだスクリプト (`pick_civic_segments.py`) と、風のデータを集めたスクリプト (`wind/collect.py`, `wind/remote_zip.py`) が `data/` の下にある (2026-11-11 に見つけた) | ずれ 1 と同じで、git に入っていなかった | **対応済み** (2026-11-11)。スクリプト 3 本を `scripts/crosswind/civic_selection/` へ移した。CSV は動かしていない |
 
 ---
 
@@ -285,3 +285,11 @@ git 管理外。次の 2 種類を置く。
 - 自動の列に `config_refs` (configs/ からの参照) と `shared_copies` (shared/ にある同じ中身のファイル)、`attention` (文書上は旧版なのに現行処理・報告資料が使っている行などの指摘) を足した
 - 確かめて分かったこと: `out/vibration/pavement/` は文書上「旧版・別目的」だが、`configs/vibration_locate.yaml:7-8` と `configs/vlm_road.yaml:50` が入力として読んでいる。`out/screen_rav4_tss2_2k/` は「旧版」だが、図が `shared/` に使われている。`out/comma1m/` は横風の解析 (c1m_search) の入力
 - 列の意味は `experiments/README.md`
+
+### 2026-11-11 Civic の選定スクリプトの移動 (ずれ 9)
+
+- 対象: `data/comma2k19_civic/_selection/pick_civic_segments.py`、`wind/collect.py`、`wind/remote_zip.py` の 3 本。移動先は `scripts/crosswind/civic_selection/`。CSV 11 本 (`wind/` の下) と `selection.csv` は動かしていない (sha256 で変化なしを確認)
+- 保全: `out/_backup/civic_selection_scripts_2026-11-11.tar.gz` と `.sha256`。移動の前後で sha256 が一致。対応表 `scripts/crosswind/path_map.csv` に 3 行を足した。旧位置に `SCRIPTS_MOVED.md` を置いた
+- import: `collect.py` は同じフォルダの `remote_zip` を import するので、2 本を同じフォルダに置いた。`collect`・`remote_zip`・`pick_civic_segments` の名前で、ほかのスクリプトから import できてしまうことはない
+- パスと出力: `pick_civic_segments.py` は入力と出力を引数で受け取る。`collect.py` は**カレントディレクトリ**に `remote_chunk_N.csv` を書く (置き場所が変わっても挙動は同じ)
+- 比較: 移動の前後で `pick_civic_segments.py` を流し、出力が既存の `data/comma2k19_civic/selection.csv` とバイト単位で一致した。`tests/test_civic_selection.py` (2 件。データが無い環境では 1 件 skip) で同じことを確かめる

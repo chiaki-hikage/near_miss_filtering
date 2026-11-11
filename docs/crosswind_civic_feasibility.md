@@ -530,6 +530,8 @@ v·W_left を説明変数にした当てはめも行ったが、結論は同じ�
 
 `all_segments_wind.csv` を作った突き合わせの処理は、その場で実行したもので、スクリプトとしては残っていない。
 
+> 2026-11-11 追記: `pick_civic_segments.py`・`collect.py`・`remote_zip.py` は内容を変えずに `scripts/crosswind/civic_selection/` へ移した。CSV は上の場所に残っている。上の表の旧パスは記録として残している。対応表は `scripts/crosswind/path_map.csv`。`all_segments_wind.csv` と SFO の気象データについて分かっていることは `docs/crosswind_wind_data.md`。
+
 ### コード（リポジトリ。既存のファイルは変えていない）
 
 | ファイル | 内容 |
