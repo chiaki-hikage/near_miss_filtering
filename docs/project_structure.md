@@ -19,6 +19,7 @@ near_miss_filtering/
 ├── tests/           単体試験 (pytest)。tests/data/ に基準値        git 管理
 ├── docs/            仕様・検証結果・データセットの説明            git 管理
 ├── experiments/     out/ の解析結果の索引 (index.csv)             git 管理
+├── reports/         報告資料の原稿 (週次報告・AI 活用の事例)        git 管理 (週次の PPT は管理外)
 ├── shared/          他の人に渡した資料 (図・動画・スライド)        git 管理
 ├── raw_data/        公開元から取得した元データ        71 GB      git 管理外
 ├── data/            選んで取った元データ・補助データ   3.0 GB     git 管理外
@@ -27,6 +28,7 @@ near_miss_filtering/
 ├── requirements.txt           uv export で自動生成 (直接編集しない)
 ├── .python-version            Python 3.10 に固定
 ├── README.md                  入口。処理の流れと実行方法
+├── claude-progress.md         セッション間の作業の引き継ぎ
 └── CLAUDE.md                  プロジェクトの方針
 ```
 
@@ -97,17 +99,17 @@ pytest の単体試験。ファイル名は `test_<対象>.py`。試験の基準
 
 ### docs/
 
-31 本ある。主なまとまりは次のとおり。
+33 本ある。主なまとまりは次のとおり。
 
 | まとまり | 文書 |
 |---|---|
-| 全体と仕様 | `pipeline_overview.md`, `io_spec.md`, `event_detection_spec.md`, `environment.md`, `project_structure.md` (この文書) |
+| 全体と仕様 | `pipeline_overview.md`, `io_spec.md`, `event_detection_spec.md`, `environment.md`, `project_structure.md` (この文書), `roadmap.md` |
 | フィルタの設計 | `l1_filter.md`, `sideslip_filter.md`, `near_miss_filters.md`, `near_miss_filters_summary.md` |
 | データセットと信号 | `datasets.md`, `comma2k19_data.md`, `comma_car_segments.md`, `comma1M.md`, `kit_msdm.md`, `signals_rav4.md` |
 | 出力形式と API | `near_miss_canonical_schema.md`, `near_miss_api_data_spec.md`, `near_miss_api_response_draft.md`, `near_miss_data_inventory.md`, `label_list_mapping.md` |
 | VLM | `vlm_review_poc.md`, `vlm_road_review.md` |
 | 路面振動 | `vibration_*.md` (8 本) |
-| 個別の検証 | `jerk_feasibility.md`, `crosswind_civic_feasibility.md` |
+| 個別の検証 | `jerk_feasibility.md`, `crosswind_civic_feasibility.md`, `crosswind_wind_data.md` |
 
 ### experiments/ — 解析結果の索引
 
@@ -118,6 +120,14 @@ pytest の単体試験。ファイル名は `test_<対象>.py`。試験の基準
 - 手で書く列 (作成スクリプト、現行処理での利用、文書上の区分、検証の記録、正式な採否、確認の優先度と、それぞれの根拠) は、スクリプトが書き換えない
 - 利用されていること・文書で「正」とされたこと・検証したこと・正式に採用したことは別の列で持ち、ある列から別の列の値を決めない
 - 列の意味と `status` の値は `experiments/README.md`
+
+### reports/ — 報告資料の原稿
+
+作り方と管理のルールは `reports/README.md`。
+
+- `weekly/YYYY-Www/`: 週次報告。原稿 `notes.md` (人が書く) と `changes.md` (前回報告からの変更点。`scripts/report/weekly_changes.py` が Git の履歴と実験索引から作る) は git 管理。PPT (`scripts/report/build_weekly_pptx.py` が作る) は当面 git 管理外
+- `ca/`: AI 駆動開発の活用事例・ノウハウ・課題 (C&A 目標 2)
+- 長期の状況は `docs/roadmap.md`、セッション間の引き継ぎは直下の `claude-progress.md`
 
 ### shared/ — 他の人に渡した資料
 
@@ -205,6 +215,7 @@ git 管理外。次の 2 種類を置く。
 
 21. 仕様と検証結果は `docs/` に置く。
 22. 他の人に渡した資料は `shared/` に置く。
+23. 報告の原稿は `reports/` に置き、git で管理する。生成した PPT は当面 git 管理外にする (`reports/README.md`)。
 
 ---
 
@@ -293,3 +304,11 @@ git 管理外。次の 2 種類を置く。
 - import: `collect.py` は同じフォルダの `remote_zip` を import するので、2 本を同じフォルダに置いた。`collect`・`remote_zip`・`pick_civic_segments` の名前で、ほかのスクリプトから import できてしまうことはない
 - パスと出力: `pick_civic_segments.py` は入力と出力を引数で受け取る。`collect.py` は**カレントディレクトリ**に `remote_chunk_N.csv` を書く (置き場所が変わっても挙動は同じ)
 - 比較: 移動の前後で `pick_civic_segments.py` を流し、出力が既存の `data/comma2k19_civic/selection.csv` とバイト単位で一致した。`tests/test_civic_selection.py` (2 件。データが無い環境では 1 件 skip) で同じことを確かめる
+
+### 2026-11-11 進捗管理と週次報告の仕組み
+
+- 追加: `docs/roadmap.md`、`claude-progress.md`、`reports/README.md`、`reports/weekly/TEMPLATE.md`、`reports/weekly/2026-W46/` (`notes.md`・`changes.md`)、`reports/ca/` (`README.md`・`cases.md`)
+- 生成スクリプト: `scripts/report/weekly_changes.py`、`scripts/report/build_weekly_pptx.py`。設定は `configs/report_weekly.yaml`。依存に `python-pptx` を追加 (`uv add --optional report`)
+- 社内テンプレートは見つからなかったので、暫定テンプレートをスクリプトの中で組み立てる
+- `.gitignore` に `reports/weekly/*/*.pptx` を足した
+- `CLAUDE.md` に参照先とセッションの開始・終了時の手順を足した

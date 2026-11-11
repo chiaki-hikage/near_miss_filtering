@@ -1,0 +1,51 @@
+# 週次報告 PPT の設定 (scripts/report/build_weekly_pptx.py)
+#
+# 社内テンプレートが見つからなかったので (2026-11-11、~/Documents・~/Desktop・~/Downloads・
+# Office のテンプレートの場所を探した)、暫定テンプレートをスクリプトの中で組み立てる。
+# 社内テンプレートが手に入ったら template に .pptx / .potx のパスを書く。
+# そのときは、テンプレートの最初のスライドレイアウト (白紙) の上に、下の座標で配置する。
+
+template: null
+
+slide:
+  width_in: 13.333        # 16:9
+  height_in: 7.5
+
+# 暫定テンプレート
+theme:
+  font: Meiryo            # 日本語。Office 標準。無い環境では PowerPoint が置き換える
+  font_mono: Consolas     # 根拠のパス
+  color_title: "1F2A44"   # 濃紺: タイトル
+  color_text: "222222"
+  color_muted: "6B7280"   # 補足・根拠
+  color_accent: "2F6FB0"  # 見出しの帯・区切り
+  color_band_text: "FFFFFF"
+  color_table_head: "E8EEF6"
+  size_title: 26
+  size_heading: 16
+  size_body: 14
+  size_small: 10.5
+
+limits:
+  max_slides: 5           # 報告は 3〜5 枚
+  max_bullets: 6          # 1 つの枠に入れる項目の上限。超えたら「ほか N 件」とまとめる
+  max_results: 3          # 「主な実験結果」に載せる件数の上限
+  max_evidence_per_result: 4
+  max_changed_files: 8    # 「前回からの変更点」に載せるファイルのまとまりの上限
+
+# 前回報告からの変更点 (scripts/report/weekly_changes.py)
+changes:
+  index: experiments/index.csv
+  # 変更の分類 (パスの先頭 → 区分)。上から順に最初に一致したもの
+  areas:
+    - ["src/", "コード (src)"]
+    - ["scripts/", "スクリプト"]
+    - ["configs/", "設定"]
+    - ["tests/", "試験"]
+    - ["docs/", "文書"]
+    - ["experiments/", "実験索引"]
+    - ["reports/", "報告"]
+    - ["shared/", "共有資料"]
+    - ["", "その他"]
+  # 索引で比べる手書きの列 (変化があれば報告に載せる)
+  index_cols: [current_use, doc_label, verification, decision, check_priority]

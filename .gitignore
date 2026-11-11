@@ -33,3 +33,7 @@ uv.lock.bak
 .env.local
 .aws/
 shared/msdm.tar
+
+# 週次報告の PPT は当面 git 管理外。原稿 (notes.md・changes.md) と生成スクリプトから作り直せる
+# (reports/README.md)
+reports/weekly/*/*.pptx
