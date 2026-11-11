@@ -56,3 +56,23 @@ CAN、IMU、GNSSなどのセンサ時系列から、急ブレーキ、急操舵�
 * 依存関係は `pyproject.toml` で管理する
 * パッケージの追加・削除は原則として `uv add` / `uv remove` を使用する
 * Pythonスクリプトは原則 `uv run` 経由で実行する
+
+## 進捗管理と報告
+
+詳細は各ファイルを参照し、ここには書き足さない。
+
+* 構成と配置ルール: `docs/project_structure.md`
+* 長期の状況: `docs/roadmap.md` / セッション間の引き継ぎ: `claude-progress.md`
+* 実験結果の索引: `experiments/index.csv` (列の意味は `experiments/README.md`)
+* 報告資料の作り方: `reports/README.md` (週次報告は `reports/weekly/`、AI 活用の事例は `reports/ca/`)
+
+セッションの開始時
+
+1. `claude-progress.md` を読み、判断待ちの項目を確かめる
+2. `git status` とブランチを確かめる。既存の未コミットの変更を混ぜない
+
+セッションの終了時
+
+1. `git status` で意図しない変更が無いか確かめる
+2. `out/` に結果を足したら `uv run python scripts/report/build_experiment_index.py` を流す
+3. `claude-progress.md` を更新する
