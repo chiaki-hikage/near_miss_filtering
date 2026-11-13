@@ -1,0 +1,42 @@
+# 週次報告の構成案のひな形。reports/weekly/<YYYY-Www>/outline.yaml に写して使う
+# 作り方: .claude/skills/weekly-slides/SKILL.md
+# 検査:   uv run --extra report python scripts/report/build_weekly_pptx.py <outline.yaml> --check
+#
+# 決まり: 5〜7 枚。1 枚 = タイトル + 主文 1 つ + 図か表 1 つ + 注釈。1 スライド 1 メッセージ
+# このひな形には書き方の例を 3 枚だけ載せている (そのまま --check にかけると枚数の誤りになる)
+
+week: YYYY-Www
+title: ""
+period_start: YYYY-MM-DD
+period_end: YYYY-MM-DD
+notes: reports/weekly/YYYY-Www/notes.md     # 原稿 (base_commit を読む)
+
+slides:
+  - title: 今週のまとめ
+    message: (今週いちばん伝えたいことを 1 文で)
+    visual:
+      table:
+        - [テーマ, 状況, 今週の変化]
+        - [A. CAN による候補抽出, 進行中, ""]
+      widths: [3, 1.2, 6]
+    notes:
+      - (表の読み方)
+    evidence: [docs/roadmap.md]
+
+  - title: (結果の見出し)
+    message: (この結果から言えることを 1 文で。確かさの程度も含める)
+    visual:
+      image: shared/xxx.png
+    notes:
+      - (図の読み方・条件)
+      - (限界)
+    evidence: [out/..., configs/...]
+
+  - title: 前回報告からの変更点
+    message: (変更の要点を 1 文で)
+    visual:
+      changes: commits          # commits (コミットの一覧) か areas (区分ごとの件数)
+    layout: below
+    notes:
+      - 詳細は changes.md
+    evidence: [reports/weekly/YYYY-Www/notes.md]

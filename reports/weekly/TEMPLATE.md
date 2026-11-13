@@ -7,7 +7,7 @@ base_commit: xxxxxxx           # 前回報告の changes.md の比較の終点 (
 audience: プロジェクト関係者・管理者
 ---
 
-<!-- 書き方は reports/README.md。節の名前は変えない (スライドの割り当てに使う) -->
+<!-- 書き方は reports/README.md。節の名前は変えない (weekly_changes.py が「根拠:」の行を読む)。スライドの構成は outline.yaml に書く -->
 
 ## 今週の要点
 

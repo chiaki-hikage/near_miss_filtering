@@ -7,7 +7,7 @@ C&A (FY26 2H) の目標のうち、このリポジトリが受け持つテーマ
 - 状況の値: 未着手 / 調査中 / 進行中 / 結論あり (区切り) / 保留
 - マイルストーンの期限は、決まっていないものは「未設定」と書く (推測で日付を入れない)
 
-最終更新: 2026-11-11 (2026-W46)
+最終更新: 2026-11-13 (2026-W46)
 
 ## 1. C&A の目標との対応
 
@@ -27,10 +27,10 @@ C&A (FY26 2H) の目標のうち、このリポジトリが受け持つテーマ
 | C | 統一形式・API 連携 | 1-(1) | 進行中 | 仕様・Schema・サンプルを API 側へ提供 (2026-10-28、`shared/provided_to_api/`) | 未設定 | `docs/near_miss_canonical_schema.md`、`docs/near_miss_api_data_spec.md` |
 | D | スリップ | 1-(2) (2Q からの継続) | 結論あり | 等級 (multi / high / activation / physics) を改訂した v3 が統一形式の入力 (2026-09-16) | 未設定 | `docs/sideslip_filter.md` |
 | E | 段差・くぼみによる異常振動 | 1-(2) | 進行中 | 振動イベント 1,037 件、地点 498。物理整合性の評価と報告用の図 (2026-10-27〜11-09) | 未設定 | `docs/vibration_near_miss_candidates.md`、`docs/vibration_physics_validation.md`、`docs/vibration_poc_final_summary.md` |
-| F | 突風・横風による走行不安定 | 1-(2) | 調査中 | comma2k19 (Civic・RAV4) と comma1M では、横風と合理的に言えるイベントは見つからなかった。検証に使える公開データセットを調査中 (2026-11-10〜11) | 使うデータセットを決める (未設定) | `docs/crosswind_civic_feasibility.md`、`docs/crosswind_wind_data.md`、`out/crosswind/xwind_search/README.md`、`out/crosswind/c1m_search/README.md` |
+| F | 突風・横風による走行不安定 | 1-(2) | 進行中 | ZOD を採用し、全 177 走行でヨー残差の候補 14 件を気象観測 (DWD・SMHI) と照合。「支持」3 件 (うち 2 件は同じ連続事象)・反証 6・不明 5。横風が原因と確定した事象は無い。前方映像で 6 件を確認 (2026-11-12〜13) | 他の要因 (路面の勾配・操舵のゼロ点・周辺車両) との識別 (未設定) | `docs/zod_full_screening.md`、`docs/zod_full_weather.md`、`out/zod/front_video_review/review.md`、`reports/weekly/2026-W46/crosswind_outline.yaml` |
 | G | ブレーキフェード | 1-(2) | 未着手 | 説明用の図だけがある (`shared/fade_illust.jpeg`)。解析はリポジトリに無い | 未設定 | — |
 | H | AI 駆動開発の事例・ノウハウ | 2 | 進行中 | 事例の記録を始めた (2026-11-11) | 未設定 | `reports/ca/` |
-| — | 実験・報告の管理 | (共通) | 進行中 | 構成文書、実験索引、週次報告の仕組みを整備 (2026-11-11) | `main` への統合の判断 (未設定) | `docs/project_structure.md`、`experiments/README.md`、`reports/README.md` |
+| — | 実験・報告の管理 | (共通) | 進行中 | 構成文書、実験索引、週次報告の仕組みを整備し、main に統合 (2026-11-11)。週次スライドの作り方を skill にした | 週次スライドの skill を使いながら直す (未設定) | `docs/project_structure.md`、`experiments/README.md`、`reports/README.md`、`.claude/skills/weekly-slides/SKILL.md` |
 
 ## 3. 保留・判断待ち
 

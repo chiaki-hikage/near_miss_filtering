@@ -125,7 +125,8 @@ pytest の単体試験。ファイル名は `test_<対象>.py`。試験の基準
 
 作り方と管理のルールは `reports/README.md`。
 
-- `weekly/YYYY-Www/`: 週次報告。原稿 `notes.md` (人が書く) と `changes.md` (前回報告からの変更点。`scripts/report/weekly_changes.py` が Git の履歴と実験索引から作る) は git 管理。PPT (`scripts/report/build_weekly_pptx.py` が作る) は当面 git 管理外
+- `weekly/YYYY-Www/`: 週次報告。原稿 `notes.md` (人が書く)、構成案 `outline.yaml` (合意したもの)、`changes.md` (前回報告からの変更点。`scripts/report/weekly_changes.py` が Git の履歴と実験索引から作る) は git 管理。PPT (`scripts/report/build_weekly_pptx.py` が構成案から作る) は当面 git 管理外
+- スライドの作り方は skill `.claude/skills/weekly-slides/SKILL.md` (git 管理)。作る時期はユーザーが指定し、構成案に合意してから作る
 - `ca/`: AI 駆動開発の活用事例・ノウハウ・課題 (C&A 目標 2)
 - 長期の状況は `docs/roadmap.md`、セッション間の引き継ぎは直下の `claude-progress.md`
 
@@ -312,3 +313,9 @@ git 管理外。次の 2 種類を置く。
 - 社内テンプレートは見つからなかったので、暫定テンプレートをスクリプトの中で組み立てる
 - `.gitignore` に `reports/weekly/*/*.pptx` を足した
 - `CLAUDE.md` に参照先とセッションの開始・終了時の手順を足した
+
+### 2026-11-11 main への統合と、週次スライドの作り方の変更
+
+- `chore/project-structure` を `main` に早送りで統合した (リモートには push していない)
+- 週次スライドの作り方を skill `.claude/skills/weekly-slides/SKILL.md` にした。毎週 5〜7 枚、1 枚は「タイトル・主文 1 つ・図か表 1 つ + 注釈」、1 スライド 1 メッセージ。構成案に合意してから作る。作る時期はユーザーが指定する
+- `scripts/report/build_weekly_pptx.py` を、原稿の節から 5 枚を作る作りから、構成案 (`outline.yaml`) から作る作りに変えた。`--check` で構成案を検査する。ひな形は `reports/weekly/OUTLINE_TEMPLATE.yaml`。上限と配置は `configs/report_weekly.yaml`

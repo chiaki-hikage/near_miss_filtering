@@ -1,0 +1,75 @@
+# 横風外乱の探索 (comma2k19・NVIDIA AV・ZOD) の進捗報告。上司向け、4 枚 (2026-11-13、構成はユーザーの指定)
+# 作り方: .claude/skills/weekly-slides/SKILL.md。4 枚なので設定は crosswind_report_config.yaml (min_slides だけ 4)
+#   uv run --offline --extra viz python scripts/report/crosswind_slides_figs.py --out reports/weekly/2026-W46/crosswind_fig
+#   uv run --extra report python scripts/report/build_weekly_pptx.py reports/weekly/2026-W46/crosswind_outline.yaml \
+#       --config reports/weekly/2026-W46/crosswind_report_config.yaml --out reports/weekly/2026-W46/crosswind_2026-W46.pptx
+# notes (原稿) は付けない: この報告は前回からの変更点の表を使わないので、changes.md を書き換えない
+
+week: 2026-W46
+title: 横風外乱の探索の進捗
+header: "横風外乱の探索 (comma2k19・NVIDIA AV・ZOD) 進捗報告  |  2026-11-13"
+period_start: 2026-11-09
+period_end: 2026-11-15
+
+slides:
+  - title: 横風外乱の解析に適した車両データセットを選定
+    message: 舵角・ヨーレート・位置と時刻がそろい、気象と照合できる ZOD を採用
+    visual:
+      image: reports/weekly/2026-W46/crosswind_fig/fig1_datasets.png
+    notes:
+      - "comma2k19: 解析済み。横風と言える事象は無く、風の観測は空港 1 地点"
+      - "NVIDIA: 大規模だが、舵角・位置・日付が無く気象と照合できない"
+      - "nuScenes: 平均 16 km/h の市街地が中心 (公開仕様で確認)"
+      - "ZOD: 高速道路を含み、必要な信号がそろう (CC BY-SA 4.0)"
+    evidence:
+      - docs/crosswind_civic_feasibility.md
+      - docs/physical_ai_av.md
+      - docs/zod.md
+      - docs/zod_full_inventory.md
+
+  - title: 車両運動モデルと気象情報を用いた横風外乱の探索
+    message: 舵角から予測したヨーと実測の差を外乱の指標とし、推定横風と照合
+    visual:
+      image: reports/weekly/2026-W46/crosswind_fig/fig2_approach.png
+    notes:
+      - 80 km/h 超・直進で、ヨー残差の 5 s 平均が閾値を超えた区間を候補とする
+      - モデルの係数と閾値は、車両ごとに別の走行で決める (走行の単位の交差検証)
+      - 「支持」= 横風の向きが合い、必要量に届きうり、路面の傾きでは説明できない
+      - 判定の条件は気象データの取得前に決め、結果に合わせて変えていない
+    evidence:
+      - scripts/zod/full_screening.py
+      - scripts/zod/full_weather.py
+      - configs/zod/full_weather.yaml
+      - out/zod/
+
+  - title: 横風と整合する持続的な補正操舵の事例を確認
+    message: 左からの推定横風に対し左への当て舵が続いた (整合を確認、原因は未確定)
+    visual:
+      image: reports/weekly/2026-W46/crosswind_fig/fig3_case.png
+    notes:
+      - 横風・トルクの向きが合い、ロール (路面の傾き) の変化では説明できない
+      - 操舵のゼロ点の変化 (わだち・路面など) とは、この事象だけでは区別できない
+      - 風は 11〜32 km 先の 10 分平均。必要な横風量は作用点の仮定で大きく変わる
+      - 映像では開けた平地の直線。並走する大型車・橋は無い
+    evidence:
+      - out/zod/
+      - out/zod/full_weather/20261113_r4/candidates_weather.csv
+      - out/zod/front_video_review/review.md
+
+  - title: 横風外乱の原因識別と検出手法の高度化
+    message: 原因識別の精度向上を優先し、危険度評価と探索対象の拡張を進める (案)
+    visual:
+      table:
+        - [優先, 課題, 内容 (案)]
+        - ["1", 他の要因との識別, "路面の勾配・操舵のゼロ点・周辺車両を分ける。映像では持続型 6 件のうち 2 件が大型車の追い越しと重なった"]
+        - ["2", 物理モデルの改善, "横力に加えてヨーモーメント (空力の作用点) を入れ、必要な横風量とその不確かさを見直す"]
+        - ["3", 危険度の評価, "横ずれの量・車線の中の位置から、車線逸脱までの余裕を評価する方法を検討する"]
+        - ["4", 探索対象の拡張, "速度・曲率の条件を見直す。走行全体の車両データ (約 170 h) や気象の再解析データの利用を検討する"]
+      widths: [0.7, 2.0, 7.3]
+    notes:
+      - 1・2 は、今の候補の判定の確かさに直結するので先に行う
+      - 現状は 14 件中「支持」3 件 (うち 2 件は同じ連続事象)。原因が確定した事象は無い
+      - 気象の再解析データ (ERA5 など) は、登録と利用条件の確認が要る
+    evidence:
+      - docs/zod_full_weather.md
+      - out/zod/front_video_review/review.md

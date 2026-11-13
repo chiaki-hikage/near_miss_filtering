@@ -1,0 +1,33 @@
+# ZOD の信号調査 (scripts/zod/signal_survey.py) の設定。docs/zod_signals.md
+# 値の多くは comma2k19 の横風の検討 (docs/crosswind_civic_feasibility.md §4.2) にそろえた。
+
+grid_hz: 20                 # 走行全体の車両データをそろえる周期
+smooth_s:                   # 移動平均の幅 (docs/crosswind_civic_feasibility.md §4.2 と同じ)
+  speed: 0.25
+  steer: 0.15
+  accel: 0.15
+max_gap_s: 0.1              # 車両データの間隔がこれを超える所は使わない
+gap_margin_s: 2.0           # 途切れの前後これだけは、帯域を通した残差を使わない
+
+fit:                        # 単軌道モデル δsw = a·(ay/v²) + b·ay + c の当てはめの条件
+  min_speed: 10.0           # m/s
+  max_jerk: 0.5             # m/s³ (|d ay / dt|)
+  min_abs_ay: 0.3           # m/s²。15 m/s で 1 deg/s のヨーレートに当たる
+
+straight_highspeed:         # 残差の雑音を測る区間
+  min_speed: 22.0           # m/s (約 80 km/h)
+  max_abs_steer_deg: 3.0    # |δsw − c|
+  band_hz: [0.2, 2.0]
+
+camera_alignment:
+  lag_range_s: 1.0
+  lag_step_s: 0.01
+  draft_size: [962, 542]    # JPEG を 1/4 で読む (1/8 では 1 フレームのずれが 0〜3 px で、雑音に埋もれた)
+  rows: [0.40, 0.60]        # 地平線のまわり (遠景。上は無地の空、下は近くの路面の流れ)
+  cols: [0.20, 0.80]        # 魚眼のひずみの小さい中央
+  max_shift_px: 60          # 探すずれの上限 [px] (1/4 で fx ≈ 470 px/rad → 約 7 deg)
+  frame_baseline: 3         # 3 フレーム (約 0.3 s) 離れた画像どうしを比べる
+  median_filter: 5          # ずれの列にかける中央値フィルタの幅 (外れたピークを除く)
+
+top_events: 15              # 走行全体の横加速度の残差の大きい区間を何件出すか
+event_window_s: 2.0

@@ -1,4 +1,5 @@
 # 週次報告 PPT の設定 (scripts/report/build_weekly_pptx.py)
+# 作る手順は .claude/skills/weekly-slides/SKILL.md。PPT を作る時期はユーザーが決める
 #
 # 社内テンプレートが見つからなかったので (2026-11-11、~/Documents・~/Desktop・~/Downloads・
 # Office のテンプレートの場所を探した)、暫定テンプレートをスクリプトの中で組み立てる。
@@ -8,12 +9,13 @@
 template: null
 
 slide:
-  width_in: 13.333        # 16:9
+  width_in: 10.0          # 4:3 (2026-11-13 にユーザーが指定。毎回共通)
   height_in: 7.5
 
-# 暫定テンプレート
+# 暫定テンプレート (色・字体・体裁は 2026-11-13 にユーザーが指定した毎回共通のもの)
+# 色: 紺・青・水色のブルー系が基調。強調するところだけ赤・オレンジを使ってよい
 theme:
-  font: Meiryo            # 日本語。Office 標準。無い環境では PowerPoint が置き換える
+  font: Yu Gothic UI      # 日本語 (ユーザーの指定)。無い環境では PowerPoint が置き換える
   font_mono: Consolas     # 根拠のパス
   color_title: "1F2A44"   # 濃紺: タイトル
   color_text: "222222"
@@ -21,17 +23,46 @@ theme:
   color_accent: "2F6FB0"  # 見出しの帯・区切り
   color_band_text: "FFFFFF"
   color_table_head: "E8EEF6"
-  size_title: 26
-  size_heading: 16
-  size_body: 14
+  # 図 (matplotlib など) を作るときの色。スライドと同じブルー系にそろえる
+  color_blue: "2F6FB0"    # 主な系列・予測など
+  color_sky: "3E9BD6"     # 水色: 補助の系列・帯
+  color_pale: "EAF2FB"    # 薄い水色: 強調する列・枠の塗り
+  color_steel: "8A9BB0"   # 目立たせない線
+  color_emph_red: "C0392B"     # 強調 (赤): 要点の値・閾値の線
+  color_emph_orange: "E08A2E"  # 強調 (オレンジ): 要点の矢印など
+  font_figure: YuGothic   # 図の字体 (Mac の游ゴシック。スライドの Yu Gothic UI に近いもの)
+  size_title: 22
+  size_message: 16        # 主文 (1 行に収める)
+  size_notes: 11.5        # 注釈
+  size_table: 11
   size_small: 10.5
 
 limits:
-  max_slides: 5           # 報告は 3〜5 枚
-  max_bullets: 6          # 1 つの枠に入れる項目の上限。超えたら「ほか N 件」とまとめる
-  max_results: 3          # 「主な実験結果」に載せる件数の上限
-  max_evidence_per_result: 4
-  max_changed_files: 8    # 「前回からの変更点」に載せるファイルのまとまりの上限
+  min_slides: 5           # 毎週 5〜7 枚
+  max_slides: 7
+  max_message_chars: 60   # 主文は 1 文。長ければ注意を出す (誤りにはしない)
+  max_table_rows: 8
+  max_notes: 4
+
+# 1 枚の配置: タイトル → 主文 → 図か表 + 注釈 (右か下) → 根拠
+layout:
+  margin_in: 0.5
+  message_top_in: 1.2
+  message_gap_in: 0.15
+  message_h_in: 0.45      # 主文の枠 (1 行)
+  footer_h_in: 0.45
+  notes_position: below   # 注釈の既定の位置 (4:3 では図表を全幅に置く)。スライドごとに layout: right で変えられる
+  visual_ratio: 0.62      # right のとき、図表が使う幅の割合
+  notes_below_h_in: 1.25   # below のときの注釈と根拠の高さ
+  table_row_h_in: 0.36
+
+# 見た目 (2026-11-13 にユーザーが指定した毎回共通のもの)
+style:
+  title_bar: true          # タイトルの前に太い縦棒
+  title_bar_w_in: 0.12
+  title_rule: false        # タイトルと主文の間の横棒は出さない
+  message_marker: "■"      # 主文は ■ の箇条書きの形
+  evidence_beside_notes: 0.74   # 注釈を下に置くとき、注釈の幅の割合 (右に根拠)
 
 # 前回報告からの変更点 (scripts/report/weekly_changes.py)
 changes:

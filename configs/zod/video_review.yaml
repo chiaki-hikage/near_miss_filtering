@@ -1,0 +1,36 @@
+# ZOD 横風候補の前方映像の確認用の動画 (scripts/zod/video_review.py) の設定。説明: out/zod/video_review/README.md
+
+raw_root: raw_data/zod
+inventory_run: out/zod/full_inventory/20261112_r2
+screening_run: out/zod/full_screening/20261112_r6
+weather_run: out/zod/full_weather/20261112_r3
+out_dir: out/zod/video_review
+
+# 作るシーケンス。role: 候補 / 候補 (検出区間の外) / 対照 / 動作確認。events は空なら、近くの候補を自動で拾う (表示用)
+targets:
+  - {sequence: "000765", role: 候補, focus: [E0096, E0097], priority: 1}
+  - {sequence: "000249", role: 候補, focus: [E0196], priority: 2}
+  - {sequence: "000675", role: 候補, focus: [E0082], priority: 3}
+  - {sequence: "000662", role: 候補, focus: [E0004], priority: 4}
+  - {sequence: "000801", role: 候補, focus: [E0148], priority: 5}
+  - {sequence: "000803", role: 候補, focus: [E0160], priority: 5}
+  - {sequence: "000804", role: 候補, focus: [E0153], priority: 6}
+  - {sequence: "000695", role: 候補, focus: [E0044], priority: 6}
+  - {sequence: "001187", role: 候補, focus: [E0078], priority: 7}
+  - {sequence: "000806", role: 候補, focus: [E0155], priority: 7}
+  - {sequence: "000247", role: 対照, focus: [], priority: 8, note: "uniform 2022-04-04、南向き、右からの横風 −9.9 m/s (推定)。候補なし。E0196 と同じ走行の 1 分前"}
+  - {sequence: "000281", role: 対照, focus: [], priority: 8, note: "uniform 2022-04-04、北西向き、左からの横風 +8.3 m/s (推定)。候補なし。000247 と逆向き"}
+  - {sequence: "000000", role: 動作確認, focus: [], priority: 99, note: "mini (画像が手元にある)。高速・直進の判定の対象の外。動画の作り方の確かめ用"}
+  - {sequence: "000002", role: 動作確認, focus: [], priority: 99, note: "mini (画像が手元にある)。同上"}
+
+plot:
+  pre_s: 8.0              # カメラの開始のこれだけ前から時系列を描く (OXTS はカメラの約 5 s 前から)
+  post_s: 3.0
+  search_events_s: [-15, 5]   # カメラの前後のこの範囲に始まる候補を、図に描く
+
+video:
+  camera_width: 1600      # 合成の動画のカメラの幅 (元は 3848 × 2168)
+  camera_only_width: 1920 # カメラだけの動画の幅
+  crf: 18
+  preset: medium
+  font: "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc"
