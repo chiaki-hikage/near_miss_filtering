@@ -1,0 +1,28 @@
+# ZOD 横風候補の前方映像の確認 (2026-11-13 の依頼、6 シーケンス)。scripts/zod/video_review.py の設定。
+# 説明: out/zod/front_video_review/README.md。時刻の定義は docs/zod_event_time_fix.md (閾値超過区間で判断する)。
+
+raw_root: raw_data/zod
+inventory_run: out/zod/full_inventory/20261112_r2
+screening_run: out/zod/full_screening/20261113_r7      # 時刻の定義を直した Phase 2
+weather_run: out/zod/full_weather/20261113_r4          # 同じく Phase 3
+out_dir: out/zod/front_video_review
+
+targets:
+  - {sequence: "000765", role: "候補 (横風を支持)", focus: [E0096, E0097], priority: 1}
+  - {sequence: "000675", role: "候補 (不明)", focus: [E0082], priority: 2}
+  - {sequence: "000662", role: "候補 (不明)", focus: [E0004], priority: 3}
+  - {sequence: "000804", role: "候補 (横風に反証)", focus: [E0153], priority: 4, note: "推定の横風が期待と逆向き。横風以外の原因の確かめ"}
+  - {sequence: "000695", role: "候補 (横風に反証)", focus: [E0044], priority: 4, note: "推定の横風が期待と逆向き・弱い"}
+  - {sequence: "000801", role: "候補 (横風に反証)", focus: [E0148], priority: 4, note: "ロールの変化 (横断勾配) で当て舵を説明できる"}
+
+plot:
+  pre_s: 8.0
+  post_s: 3.0
+  search_events_s: [-15, 5]
+
+video:
+  camera_width: 1600
+  camera_only_width: 1920
+  crf: 18
+  preset: medium
+  font: "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc"

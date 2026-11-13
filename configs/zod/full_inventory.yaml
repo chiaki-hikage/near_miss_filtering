@@ -1,0 +1,34 @@
+# ZOD Sequences full の全件の品質確認・インベントリ (scripts/zod/full_inventory.py) の設定。Phase 1。
+# 前処理 (grid_hz, smooth_s, max_gap_s, fit) は configs/zod/signal_survey.yaml、
+# 途切れ・GNSS・交差検証の設定は configs/zod/drive_validation.yaml を読み、ここでは追加の分だけを置く。
+# 説明: docs/zod_full_inventory.md
+
+workers: 10                    # 並列のプロセス数 (12 コアのうち)
+
+speed:
+  high_kmh: 80                 # 「高速」の下限
+  fit_min_ms: 10.0             # 符号・単位の確かめと単軌道モデルに使う速さの下限
+
+straight:                      # 「直進」の判断
+  oxts_max_yaw_deg_s: 1.0      # OXTS の 50 s: 1 Hz の低域を通した |r|
+  drive_max_steer_deg: 3.0     # 走行全体 (ヨーレートが無い): |δsw − c_drive|
+  indicator_margin_s: 3.0      # 方向指示器が点いている時刻の前後これだけを除く
+  drive_offset_min_speed_ms: 25.0   # c_drive = この速さを超え、方向指示器なしの舵角の中央値
+
+quality:                       # OXTS の品質の分け方 (分布を見るための目安。閾値で除くのは Phase 2 で決める)
+  beta_unc_good_deg: 0.1       # 横滑り角の不確かさ = deg(σ_v,水平 / v)。これ以下を「β を使える」
+  beta_unc_min_speed_ms: 15.0
+  pos_std_good_m: 0.1          # 水平位置の標準偏差
+
+validation:                    # 符号・単位・遅れを車両ごとに確かめるときの、窓の条件
+  min_moving_s: 20             # v > fit_min_ms の時間がこれ以上
+  min_steer_band_deg: 0.5      # 0.1〜2 Hz の舵角の標準偏差 (操舵の動きが小さい窓では関係が測れない)
+  min_ay_band: 0.15            # 0.1〜2 Hz の横加速度の標準偏差 [m/s²]
+  lag_range_s: 0.5
+  lag_step_s: 0.01
+  lowpass_hz: 2.0
+  band_hz: [0.1, 2.0]
+  steer_delay_s: [0.0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.15]   # ヨー残差の交差検証で試す舵角の遅れ (τ = 0)
+
+duplicates:
+  same_drive_tolerance_s: 1.0  # 車両データの開始・終了の時刻がこの範囲で一致すれば同じ走行のファイル

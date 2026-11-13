@@ -1,0 +1,95 @@
+# ZOD full の横風・外乱候補の一次スクリーニング (scripts/zod/full_screening.py) の設定。Phase 2。
+# 説明: docs/zod_full_screening.md。入力の一覧は Phase 1 (docs/zod_full_inventory.md) の出力。
+
+inventory_run: out/zod/full_inventory/20261112_r2
+workers: 10
+seed: 20261112
+
+grid:                          # OXTS の 100 Hz にそろえる
+  smooth_speed_s: 0.25         # 移動平均 (signal_survey.yaml と同じ)
+  smooth_steer_s: 0.15
+  smooth_yaw_s: 0.15
+  lowpass_hz: 2.0              # 残差・横加速度・β にかける低域
+  vd_max_gap_s: 0.1            # 車両データの間隔がこれを超える所は無効
+  vd_gap_margin_s: 1.0         # 無効の前後これだけも無効
+  block_gap_s: 0.05            # OXTS の時刻がこれ以上あいたら別の区間 (block)
+  edge_s: 2.0                  # block の端のこれだけは判定に使わない (フィルタの端)
+
+sync:                          # 時計のずれ (車両データ − OXTS)
+  band_hz: [0.1, 2.0]
+  lag_range_s: 0.4
+  lag_step_s: 0.005
+  min_speed_ms: 5.0
+  min_block_s: 20.0
+  min_blocks_jackknife: 3
+
+model:                         # δsw(t − d) = a·r/v + b·v·r + c  (docs/zod_signals.md §4)
+  kfold: 5                     # 車両ごとに走行の単位で分ける
+  min_speed_ms: 10.0
+  max_abs_yaw_deg_s: 15.0
+  indicator_margin_s: 3.0
+  fit_decimate: 5              # 100 Hz → 20 Hz で当てはめる
+  steer_delay_s: [0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12]   # 時計の補正の後の、物理的な遅れの候補
+  yaw_tau_s: [0.0, 0.05, 0.1, 0.15, 0.2, 0.3]  # ヨーの 1 次遅れの候補 (遅れと一緒に学習側で選ぶ)
+
+offset_calib:                  # 走行ごとのゼロ点の補正量 Δc (車両データの走行全体から。OXTS の区間は使わない)
+  window_s: 10.0               # この長さの区間ごとに δ の平均と衛星測位の方位の変化率を出す
+  min_speed_ms: 19.0           # 約 70 km/h (感度分析の下限にそろえる。c は理屈の上では速さによらない)
+  max_abs_yaw_deg_s: 1.0       # 衛星の方位から求めた |r| (直進の区間だけ)
+  exclude_oxts_margin_s: 30.0  # OXTS の区間の前後これだけは校正に使わない
+  min_gnss_updates: 8
+  min_windows: 30              # 5 分。これより少なければ補正しない (c_car のまま)
+  n_boot: 300
+  heading_perm: 300            # 方位依存の振幅の並べ替え検定
+
+screen:
+  speeds_kmh: [80, 70]         # 80 が本番、70 は感度分析
+  straight_window_s: 10.0      # 道路の曲がり = |r| の 10 s 移動平均
+  straight_max_yaw_deg_s: 1.0
+  indicator_margin_s: 3.0
+  beta_unc_good_deg: 0.1
+  fast_detrend_s: 10.0         # 突発型: Δr − 10 s 移動平均
+  slow_window_s: 5.0           # 持続型: Δr の 5 s 移動平均
+  q_fast: 0.999                # 閾値 = 学習側の走行の |値| の分位点
+  q_slow: 0.995
+  q_quiet: 0.999               # 操舵が静かなときに始まる突発型の閾値 (学習側の静かな区間の分位点)
+  quiet_steer_rate_deg_s: 3.0  # 始まりの前 quiet_pre_s の |dδ/dt| の最大がこれ未満なら「操舵が静か」(高速・直進の 90% 点 2.6 deg/s)
+  quiet_pre_s: 1.0
+  min_dur_fast_s: 0.2
+  min_dur_slow_s: 2.0
+  merge_s: 1.0
+
+event:                         # 候補ごとの特徴量と、原因の仮説の割り当て
+  onset_frac: 0.5              # ピークの 50% を最初に超えた時刻を「始まり」
+  steer_move_deg: 0.3          # 始まりの前の基準からこれだけ動いたら「操舵が動いた」
+  driver_first_max_lag_s: 0.15 # 操舵が動いた時刻 − 始まり がこれ以下なら「操舵が先」
+  indicator_pre_s: 10.0        # 始まりの 10 s 前から 5 s 後までに方向指示器があれば「車線変更など」(車線変更の後の揺れ戻しを含める)
+  indicator_post_s: 5.0
+  torque_move_nm: 0.3          # トルクが基準からこれだけ動いた最初の時刻 (舵角より先か)
+  curvature_change_deg_s: 0.5  # 事象の前後で 10 s 平均の |r| がこれ以上変われば「曲がりの変化」
+  sensor_ay_corr_min: 0.5      # 車両 IMU と OXTS の横加速度 (0.1〜2 Hz、±3 s) の相関がこれ未満なら「センサーの不一致」
+  sensor_min_ay_band: 0.1      # 上の判断をするのに要る横加速度の動き [m/s²]
+  yaw_accel_max_deg_s2: 30.0   # |dr/dt| がこれを超えたら「ヨーレートのとび」
+  measured_share_min: 0.65     # 「ヨーが先」: ピークまでの変化のうち実測の r の割合 |dR|/(|dR|+|dP|) がこれ以上
+  beta_block_abs_max_deg: 3.0  # OXTS の区間 (block) の |β| の中央値がこれを超えたら、その区間の β・姿勢は異常とみなす
+  path_fit_s: [-5.0, -0.5]     # 始まりの前のこの範囲の位置で直線を当て、後の横のずれを測る
+  path_eval_s: 4.0
+
+top:
+  n: 15
+  plot_pre_s: 8.0
+  plot_post_s: 8.0
+  control_speed_tol_kmh: 10.0
+  control_len_s: 16.0
+  control_max_fast_ratio: 0.5  # 対照: 区間の |突発型| の最大が閾値のこの割合未満
+
+recurrence:                    # 同じ地点の再通過 (道路の要因か、その時だけの外乱かの切り分け)
+  radius_m: 500
+  same_direction_deg: 45       # 進行方向の差がこれ以内の通過だけ比べる (片側の車線)
+  min_samples: 100             # 1 回の通過として数えるのに要る、範囲内・判定の対象の点 (1 s)
+
+phase3:
+  radii_km: [30, 50]
+  smhi_mb_per_station_param: 7.0   # 前回の取得の実測 (corrected-archive、全期間の 1 ファイル)
+  smhi_params: 4                   # 4, 3, 21, 25
+  dwd_mb_per_station: 3.8          # 10 分値の風 1.4 MB + 最大風速 2.4 MB (2020〜2025 の 1 ファイル)

@@ -1,0 +1,45 @@
+# 振動イベントの前方映像に、上下・ロール・ピッチの動きのイラストと ISO 2631-1 の値の推移を重ねる
+# (scripts/vibration/vibration_clip_overlay.py)。2026-11-13 の依頼。イベントの検出・評価の値は変えない (読むだけ)。
+
+base_config: configs/vibration.yaml               # grid_hz など (振動の解析と同じ)
+events_csv: out/vibration/near_miss/near_miss_vibration_events.csv
+iso_csv: out/vibration/near_miss/iso2631_events.csv
+out_dir: out/vibration/near_miss/iso_overlay
+roots: [raw_data/Chunk_1, raw_data/Chunk_2]
+
+# 比べる 2 件。同じ走行・同じセグメントの約 12 s 違い、どちらも昼・約 64 km/h
+events:
+  - id: E0474
+    role: "異常振動ヒヤリハット候補 (5 条件をすべて満たす)・ISO 2631-1 の MTVV が高い"
+  - id: E0473
+    role: "振動イベントだが候補ではない (5 条件のどれも満たさない)・MTVV は振動イベントの中央値の近く"
+  - id: E0647
+    role: "振動イベントだが候補ではない (5 条件のうち 2 つ)・MTVV は極めて不快"   # 2026-11-13 追加
+  - id: E0359
+    role: "異常振動ヒヤリハット候補 (5 条件をすべて満たす)・MTVV は極めて不快"   # 2026-11-13 追加
+
+clip_s: 3.0              # 前輪の当たり時刻の前後この秒数 (既存のクリップと同じ)
+# 実時間のあとに、当たりの前後をスロー再生する (57 km/h では入力が前輪の下を 0.07 s ほどで通り、20 Hz の映像では 1〜2 フレームしか映らないため)
+slow_motion: {from_s: -0.3, to_s: 0.6, step_s: 0.01, factor: 5}
+pad_s: 2.0               # 積分・重み付けの端の影響を避けるため、前後に余分に読む秒数
+
+# 動きの模式図: 車体のずれは上下加速度に、傾きはロール・ピッチ角速度に比例させる (変位・角度ではない)。
+# 積分した変位では、ゆっくりした揺れが大きく出て、加速度で見た強さ (ISO 2631-1) と逆の印象になったため (2026-11-13)
+# 比例の係数は 2 件で共通にする (比べられるように)。2 件の最大がこの見た目になるように決める
+display_max_angle_deg: 14        # 角速度の最大のときの傾きの見た目 [deg]
+display_max_heave_px: 18         # 上下加速度の最大のときのずれの見た目 (イラストの単位。車幅 = 160。車体とタイヤが重ならない大きさ)
+
+# 路面の入力とタイヤの上下の模式 (タイヤの上下・路面の高さは測っていない)
+road_schematic:
+  side_index_csv: out/vibration/physics_validation/all_events_side_index.csv
+  side_threshold: 0.3            # 側の指標が −0.3 以下なら右、+0.3 以上なら左、その間は両輪 (docs/vibration_physics_validation.md 4.2)
+  wheelbase_m: 2.660             # RAV4 (configs/vibration_fullcar.yaml)。後輪が入力を通る遅れ = ホイールベース / 車速
+  length_units: 34               # 模式の入力の長さ (図の単位。横から見た図でホイールベース = 168 単位なので約 0.5 m)
+  height_units: 9                # 模式の入力の高さ (図の単位)。実際の高さは分からない
+
+video:
+  width: 1920
+  camera_w: 1000
+  crf: 18
+  preset: medium
+  font: "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc"

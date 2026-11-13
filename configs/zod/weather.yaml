@@ -1,0 +1,33 @@
+# ZOD の気象照合 PoC (scripts/zod/weather_stations.py, weather_fetch.py, weather_match.py) の設定。
+# 説明: docs/zod_weather_poc.md。取得の記録は data/zod_weather/fetch_log.csv。
+
+search_radius_km: 20
+distance_bins_km: [1, 3, 5, 10, 20]
+fetch_max_stations_per_drive: 6      # 20 km 以内で 2022 年に動いていた観測所のうち、近い順にこの数まで
+fetch_max_mb_per_file: 30            # これを超えるファイルは取らない (大容量の一括取得をしない)
+match_window_h: 3                    # 走行の前後これだけの時間の観測を見る
+
+smhi:
+  base: https://opendata-download-metobs.smhi.se/api/version/1.0
+  license: "CC BY 4.0 (Creative Commons Erkännande 4.0 SE。出典として SMHI を示す。https://www.smhi.se/data/oppna-data/information-om-oppna-data/villkor-for-anvandning)"
+  parameters:                        # key: [名前, 時間の分解能の説明 (API の summary)]
+    4: [wind_speed_10min_mean, "medelvärde 10 min, 1 gång/tim"]
+    3: [wind_dir_10min_mean, "medelvärde 10 min, 1 gång/tim"]
+    21: [gust_max, "Byvind max, 1 gång/tim"]
+    25: [max_of_10min_mean_3h, "maximum av medelvärde 10 min, under 3 timmar, 1 gång/tim"]
+    47: [wind_speed_1min_mean, "1 minuts medel varje minut"]
+    48: [wind_dir_1min_mean, "1 minuts medel varje minut"]
+
+dwd:
+  base: https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate
+  license: "CC BY 4.0 (DWD CDC の Terms of use、2024-05 版。https://opendata.dwd.de/climate_environment/CDC/Terms_of_use.pdf 、https://www.dwd.de/copyright)"
+  products:                          # 名前: [フォルダ, 観測所一覧のファイル]
+    wind_10min: [10_minutes/wind/historical, zehn_min_ff_Beschreibung_Stationen.txt]
+    extreme_wind_10min: [10_minutes/extreme_wind/historical, zehn_min_fx_Beschreibung_Stationen.txt]
+    wind_hourly: [hourly/wind/historical, FF_Stundenwerte_Beschreibung_Stationen.txt]
+
+crosswind:
+  # W_left = −W·sin(D − H): 左から吹くと正 (docs/crosswind_civic_feasibility.md (5.2) と同じ定義)
+  min_speed_for_heading: 5.0         # m/s。これより遅いときの進行方位は使わない
+  straight_hi_min_speed: 22.0        # m/s
+  block_min: 10                      # 走行全体を 10 分ずつに分けて、観測と並べる

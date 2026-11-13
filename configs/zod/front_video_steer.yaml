@@ -1,0 +1,15 @@
+# 前方映像に「ハンドル」と「上から見た向き」(風・舵角から予測される進行方向・実際の進行方向・残差から推定した外力) を足す。
+# scripts/zod/video_steer_overlay.py の設定。対象・入力は base_config (configs/zod/front_video_review.yaml) と同じ。
+# 2026-11-13 の依頼。Phase 2・3 の結果と検出の条件は変えない (読むだけ)。
+
+base_config: configs/zod/front_video_review.yaml
+
+overlay:
+  panel_width: 700            # カメラ (幅 1600) の右に置くパネルの幅 [px]
+  angle_gain: 20              # 角度の誇張 (ハンドルの回転・進行方向の矢印の向き)。実際の値は数字で出す
+  horizon_s: 1.0              # 進行方向の矢印 = この秒数だけ今のヨーレートで回ったときの向き (× angle_gain)
+  max_display_deg: 85         # 誇張した角度の表示の上限 (車線変更などで振り切れないように)
+  smooth_s: 0.5               # 表示用の移動平均 (20 Hz の時系列。動画の下の図は平滑しない元の値)
+  wind_px_per_ms: 14          # 風の矢印の長さ [px / (m/s)]
+  force_px_per_ms2: 150       # 外力の矢印の長さ [px / (m/s²)] (横加速度に換算した値 A_steer = −v·Δr)
+  supersample: 2              # パネルを 2 倍で描いて縮める (線を滑らかに)

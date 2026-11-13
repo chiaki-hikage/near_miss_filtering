@@ -13,6 +13,7 @@
 
 outline.yaml の形 (ひな形は reports/weekly/OUTLINE_TEMPLATE.yaml):
   week, title, period_start, period_end, notes (原稿 notes.md のパス。base_commit を読む)
+  header (任意): 上のヘッダーの文。省略時は「週次報告 <week> | <期間>」
   slides:
     - title: タイトル
       message: 主文
@@ -24,6 +25,9 @@ outline.yaml の形 (ひな形は reports/weekly/OUTLINE_TEMPLATE.yaml):
       notes: [注釈, ...]            # 図表の読み方・条件・限界
       evidence: [パス, ...]         # 根拠 (存在を確かめる)
       layout: right | below         # 注釈を図表の右に置くか下に置くか (省略時は設定の既定)
+
+設定の style (任意。無ければ従来の見た目): title_bar (タイトルの前の縦棒)、title_rule (タイトルの下の横棒)、
+message_marker (主文の頭の記号。帯の代わり)、evidence_beside_notes (下に置くとき注釈の幅の割合、根拠を右に)
 """
 
 from __future__ import annotations
@@ -152,17 +156,27 @@ class Deck:
 
     def slide(self, spec: dict, rows=None):
         T, G = self.T, self.G
+        st = self.cfg.get("style") or {}       # 見た目の切り替え (無ければ従来の週次報告の見た目)
         layout = self.prs.slide_layouts[6] if len(self.prs.slide_layouts) > 6 else self.prs.slide_layouts[-1]
         s = self.prs.slides.add_slide(layout)
         m = G["margin_in"]; cw = self.W - 2 * m
         self.text(s, m, 0.2, cw, 0.3, [self.header], T["size_small"], T["color_muted"])
-        self.text(s, m, 0.45, cw, 0.7, [spec["title"]], T["size_title"], T["color_title"], bold=True)
-        self.rect(s, m, 1.15, cw, 0.04, T["color_accent"])
-        # 主文: 左に帯を付けて、1 枚で言いたいことを目立たせる
+        if st.get("title_bar"):                # タイトルの前に太い縦棒
+            bw = st.get("title_bar_w_in", 0.12)
+            self.rect(s, m, 0.55, bw, 0.5, T["color_accent"])
+            self.text(s, m + bw + 0.1, 0.45, cw - bw - 0.1, 0.7, [spec["title"]], T["size_title"], T["color_title"], bold=True)
+        else:
+            self.text(s, m, 0.45, cw, 0.7, [spec["title"]], T["size_title"], T["color_title"], bold=True)
+        if st.get("title_rule", True):
+            self.rect(s, m, 1.15, cw, 0.04, T["color_accent"])
         mh = G["message_h_in"]
-        self.rect(s, m, 1.35, 0.08, mh, T["color_accent"])
-        self.text(s, m + 0.2, 1.33, cw - 0.2, mh, [spec["message"]], T["size_message"], T["color_title"], bold=True)
-        top, bottom = 1.35 + mh + 0.2, self.H - G["footer_h_in"]
+        my = G.get("message_top_in", 1.35)
+        if st.get("message_marker"):           # 主文を「■」の箇条書きの形で
+            self.text(s, m, my - 0.02, cw, mh, [f"{st['message_marker']} {spec['message']}"], T["size_message"], T["color_title"], bold=True)
+        else:                                   # 主文: 左に帯を付けて、1 枚で言いたいことを目立たせる
+            self.rect(s, m, my, 0.08, mh, T["color_accent"])
+            self.text(s, m + 0.2, my - 0.02, cw - 0.2, mh, [spec["message"]], T["size_message"], T["color_title"], bold=True)
+        top, bottom = my + mh + G.get("message_gap_in", 0.2), self.H - G["footer_h_in"]
         notes, ev = spec.get("notes") or [], spec.get("evidence") or []
         if spec.get("layout", G["notes_position"]) == "right":
             vw = cw * G["visual_ratio"]
@@ -177,6 +191,14 @@ class Deck:
             self.image(s, REPO / v["image"], vx, vy, vw, vh)
         else:
             self.table(s, rows, vx, vy, vw, v.get("widths"))
+        split = st.get("evidence_beside_notes")    # 下に置くとき、根拠を注釈の右に並べる (注釈の幅の割合)
+        if split and spec.get("layout", G["notes_position"]) != "right":
+            if notes:
+                self.text(s, nx, ny, nw * split, nh, notes, T["size_notes"], T["color_text"], bullet=True, spacing=4)
+            if ev:
+                self.text(s, nx + nw * split + 0.15, ny, nw * (1 - split) - 0.15, nh, ["根拠"] + list(ev), T["size_small"] - 1.5,
+                          T["color_muted"], font=T["font_mono"], spacing=1)
+            return s
         if notes:
             self.text(s, nx, ny, nw, nh * 0.7, notes, T["size_notes"], T["color_text"], bullet=True, spacing=6)
         if ev:
@@ -209,7 +231,7 @@ def visual_rows(v: dict, changes: dict | None) -> list[list[str]] | None:
 
 
 def build(outline: dict, cfg: dict, source: str, changes: dict | None = None):
-    header = f"週次報告 {outline.get('week')}  |  {outline.get('period_start')} 〜 {outline.get('period_end')}"
+    header = outline.get("header") or f"週次報告 {outline.get('week')}  |  {outline.get('period_start')} 〜 {outline.get('period_end')}"
     d = Deck(cfg, header, source)
     for spec in outline["slides"]:
         d.slide(spec, visual_rows(spec["visual"], changes))

@@ -1,0 +1,37 @@
+# 横風の検出限界の感度分析 (scripts/zod/crosswind_sensitivity.py) の設定。docs/zod_weather_poc.md §5。
+# 車両と空力の値は ZOD の車両の諸元ではなく、**仮定**。舵角 → ヨーのモデルの a + b·v² が
+# ZOD mini の当てはめ (約 58 m、48〜64 km/h。docs/zod_signals.md §4.1) に近くなるように選んだ。
+
+vehicle:                     # 2 輪モデル (線形)
+  mass_kg: 2000
+  yaw_inertia_kgm2: 3500
+  lf_m: 1.40                 # 重心 → 前軸
+  lr_m: 1.55                 # 重心 → 後軸
+  cf_n_per_rad: 100000       # 前軸のコーナリングパワー
+  cr_n_per_rad: 120000       # 後軸
+  steering_ratio: 16.0
+
+aero:                        # 横力 Fy = ½ρ·Vr²·A·C_Y'·βw、ヨーモーメント N = Fy·x_cp (βw = atan(w/v))
+  rho: 1.2
+  area_m2: 2.8
+  cy_per_rad: [1.5, 2.5, 3.5]        # 仮定の幅
+  x_cp_m: [-0.2, 0.3, 0.7, 1.1]       # 空力の作用点の、重心からの前方への距離 (仮定の幅)。−0.2 m はこの車両の中立操舵点 (重心の 0.21 m 後ろ) の近く
+
+gust:                        # w(t) = W·(1 − cos(2πt/T))/2、0 ≤ t ≤ T
+  speeds_kmh: [60, 90, 120, 150]
+  amplitudes_ms: [3, 5, 8, 12, 15, 20]
+  durations_s: [0.5, 1.0, 2.0, 4.0]
+
+driver:                      # 運転者の補正: δsw(t) = −K·(r(t − τ) − 0)。K = 0 は補正なし
+  gains: [0.0, 0.5, 1.0]     # [deg 舵角 / (deg/s ヨーレート)]。3.0 は遅れ 0.4 s と合わせると発散した (2026-11-12) ので外した
+  delay_s: 0.4
+
+noise:                       # 実測のヨー残差の雑音 (OXTS の 50 s、5 ブロックの交差検証。docs/zod_drive_validation.md §2.1)
+  quebec: {std: 0.230, p99: 0.609}
+  romeo: {std: 0.135, p99: 0.448}
+  k_sigma: 3
+
+sim:
+  dt_s: 0.002
+  t_total_s: 12.0
+  t_gust_start_s: 2.0
