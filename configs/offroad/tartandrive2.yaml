@@ -1,0 +1,28 @@
+# TartanDrive 2.0 (CMU AirLab、CC BY 4.0) の取得と解析の設定。2026-11-17 開始。
+# 調査: docs/offroad_vibration_datasets.md。comma2k19・NVIDIA・ZOD の解析とは別の領域 (scripts/offroad/, data/offroad/, out/offroad/)。
+
+source:
+  # 公開の S3 互換 (Swift) ストレージ。認証なしの読み出し (公式の scripts/tartandrive_gui.py と同じ置き場所)
+  endpoint: "https://airlab-cloud.andrew.cmu.edu:8080/swift/v1/AUTH_ac8533a83cff4d48bc8c608ad222d330"
+  bucket: tartandrive2
+  file_index: data/offroad/tartandrive2/meta/files.yaml   # GitHub castacks/tartan_drive_2.0 の assets/files.yaml の写し
+
+data_dir: data/offroad/tartandrive2
+
+fetch:
+  # KITTI 形式 (kitti/all_topics/<run>/) から取る信号のフォルダ。画像・点群・地図は取らない
+  kitti_signal_dirs:
+    - multisense_imu
+    - novatel_imu
+    - shock_pos
+    - wheel_rpm
+    - steering_angle
+    - controls
+    - gps_odom
+    - super_odom
+    - cmd
+  kitti_extra_files: [data_extraction.log]
+  # rosbag のフォルダの小さいメタデータ (bag 本体は 1 ファイル約 32 GB なので取らない)
+  bag_meta_suffixes: [_topics.yaml, info.yaml, config.yaml]
+  max_file_mb: 50          # これより大きいファイルは取らない (取り違えの防止)
+  timeout_s: 120

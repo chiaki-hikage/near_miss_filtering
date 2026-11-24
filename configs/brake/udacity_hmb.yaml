@@ -1,0 +1,61 @@
+# Udacity CH2_002 (HMB_1〜6、2016-11、Lincoln MKZ + Dataspeed DBW) の制動と熱負荷の調査。
+# 取得: data/udacity_ch2/ (Academic Torrents の公式 .torrent、info-hash 72dfc74e541cb2c53c027d233007808bc42bf103)。
+# 説明: docs/udacity_hmb_brake.md
+#
+# ROS1 bag は rosbags で読む。依存には足さず `uv run --with rosbags` で一時的に使う。
+
+bags_dir: data/udacity_ch2/extracted
+priority_bag: HMB_2
+
+# 取り出す話題。fields を省くと、メッセージの数値・真偽の項目を 1 段だけ平らにして全部取る。
+topics:
+  /vehicle/brake_report: {}
+  /vehicle/brake_info_report: {}
+  /vehicle/throttle_report: {}
+  /vehicle/steering_report: {}
+  /vehicle/wheel_speed_report: {}
+  /vehicle/gear_report: {}
+  /vehicle/filtered_accel: {}
+  /vehicle/imu/data_raw: {}
+  /imu/data: {}
+  /fix: {}
+  /vehicle/gps/fix: {}
+  /vehicle/gps/vel: {}
+  /pressure: {}
+  /vehicle/suspension_report: {}
+camera_topic: /center_camera/image_color/compressed
+
+# ---- 解析 (scripts/brake/udacity_hmb_heat.py) ----
+analysis:
+  extract_run: 20261119_r13_udacity_hmb_extract   # udacity_bag_extract.py の出力
+  grid_dt_s: 0.05
+  speed_smooth_s: 0.5          # 車速の移動平均の幅。減速度はこの平均の微分
+  g: 9.80665
+  min_speed_mps: 3.0
+  grade:
+    source: fix                # /fix (400 Hz) の高度。/pressure (気圧) の高度と比べて確かめる
+    alt_smooth_s: 3.0          # 高度の移動平均
+    ds_m: 30.0                 # 勾配 = 高度差 / 走行距離 を、前後 ds_m/2 ずつの距離で取る
+  model:
+    # 力のつり合い: a + g sin(theta) = kw*Tw - kb*Tb - c0 - c2*v^2
+    # Tw = wheel_torque_actual (駆動側の車輪のトルク)、Tb = brake_torque_actual (Nm)。kw, kb の単位は 1/(kg m)
+    # 2 段: kw, c0, c2 はブレーキなし (Tb < torque_on_Nm) の時刻、kb は熱の指標 H300 が cold_max_Jkg 未満の制動の時刻
+    cold_max_Jkg: 200.0
+  brake:
+    torque_on_Nm: 30.0         # brake_torque_actual がこれ以上で「制動中」
+    pedal_rest: 0.15           # pedal_output の離した位置 (定義のコメントでは 0.15〜0.50、単位なし)
+  events:
+    min_duration_s: 1.5
+    steady_frac_of_peak: 0.5
+    min_steady_s: 0.5
+    min_peak_Nm: 100.0
+  heat:
+    taus_s: [60, 300]
+    windows_s: [60, 300]
+    ref_stop_kmh: 100.0        # 比べる物差し: この車速からの停止 1 回分 = 0.5 v^2 (J/kg)
+    comma2k19_rav4_E300_max_Jkg: 872.7   # out/brake_performance/20261118_r8_rav4 の最大 (比べる用)
+    descent_search_until_s: {HMB_2: 520.0}   # 最も高い所から下りきる所を探す範囲の終わり (bag ごと。無ければ bag の終わり)
+  video:
+    margin_s: 20.0             # 熱の指標が最大の下り区間の前後に足す
+    fps: 10
+    speedup: 2.0               # 2 倍速

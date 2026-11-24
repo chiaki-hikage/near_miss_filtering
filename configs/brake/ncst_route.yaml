@@ -1,0 +1,41 @@
+# NCST の路上の高速道路の走行 (DATA43 + HEM 1C161734) で、GPS が切れた後 (136.7 分〜) の経路の勾配を公開地図から推定する。
+# 説明: docs/brake_fade_feasibility.md 2.6 節
+#
+# 前提 (推定): GPS が切れる直前の 8 分間、I-15 を南西 (方位 211〜216°) へ一定に走っていた。出発点は Riverside なので、
+# そのまま I-15 を南へ Cajon Pass を越えて下ったとみなす。GPS が切れた後の位置は記録に無い。
+
+data_dir: data/brake/ncst_route          # 取得した地図・標高の置き場 (git の管理外)
+user_agent: near-miss-research-script/0.1   # 連絡先は入れない
+
+hem_file: 1C161734.csv
+logger_file: DATA43.CSV
+hem_lag_s: 16                 # HEM の時計のずれ (ncst_scene_illustration.pedal_lag と同じ値)
+
+osm:                          # OpenStreetMap (ODbL) を Overpass API で取得
+  url: https://overpass-api.de/api/interpreter
+  bbox: [34.10, -117.60, 34.42, -117.30]     # 南, 西, 北, 東
+  ref_regex: "^I 15"
+  start_bearing_deg: 214      # GPS が切れる直前の方位
+  bearing_tol_deg: 40
+  stop_lat: 34.13             # これより南は追わない
+  min_continue_m: 50          # つながる次の道を探すときの許容 (端点の距離)
+
+elevation:                    # USGS 3DEP の点の標高 (Elevation Point Query Service、公有)
+  url: https://epqs.nationalmap.gov/v1/json
+  step_m: 50                  # 経路に沿ってこの間隔で問い合わせる
+  sleep_s: 0.25
+
+profile:
+  smooth_m: 300               # 勾配を出す前の標高の移動平均 (橋・切り通しの段差を均す)
+  grade_ds_m: 200             # 勾配 = この距離の前後の標高差 / 距離
+
+align:
+  # 距離と時刻の対応。下りの区間で車速の記録がほぼ無い (約 5%) ので、目印で区切って区間ごとに一定の速さとみなす。
+  #   GPS が切れた時刻 = 経路の始点 (距離 0)
+  #   運転の局面の「下り坂 (推定)」の始まり・終わり (ncst_scene_illustration、20261118_r11) = 地図の下りの区間の始まり・終わり
+  # 地図の下りの区間: 1 km の移動平均の勾配が descent_grade_pct より急な区間で、長さ descent_min_km 以上。峠より後の順に使う。
+  # 最初の版 (20261119_r19) は下りを 1 本とみなし、下りの終わりを 13 km としたため、下りの間の速さが約 30 km/h になり
+  # 記録の車速 (中央値 90 km/h) と合わなかった。地図には平らな区間をはさんで下りが 2 本ある。
+  descent_phases_min: [[140.8, 146.5], [151.5, 158.0]]
+  descent_grade_pct: -2.5
+  descent_min_km: 2.0

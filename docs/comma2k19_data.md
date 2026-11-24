@@ -88,6 +88,7 @@ address は 165 種類 (全 64 セグメントで一定)。本プロジェクト
 | `DECEL_FLAG` | 800 | 0/1 | 20.7 Hz | 強い減速で立つ。意味は未確定 |
 | `GVC` | 800 | m/s² | 20.7 Hz | 車両が算出した前後 G。車速微分と r = +0.98 / 傾き 0.943 |
 | `GAS_PEDAL` | 705 (0x2C1) | % | 31.5 Hz | アクセル開度。0〜100%、25.5% の時間で > 0 |
+| `BRAKE_LEVEL` | 548 (0x224) | 不明 | 41.4 Hz | byte4 の bit0 + byte5。制動の連続値 (2026-11-18 追加)。物理量は未確定 |
 | `src` | — | — | — | 下位ビットがバス番号、0x80 が立つとデバイス送信フレーム |
 
 `GVC` と `GAS_PEDAL` は commaCarSegments を扱う過程で opendbc に定義を見つけたもの。
@@ -123,6 +124,8 @@ commaCarSegments には `processed_log` が無く、車速・舵角・輪速も�
 突き合わせる用途で、特徴量には入れない (YAW_RATE のスケール検証がこれにあたる)。
 
 `BRAKE_PRESSURE` (548, bit 43) はビット位置が誤っており無効のまま。
+同じメッセージの byte4〜5 にある制動の連続値は `BRAKE_LEVEL` (チャネル `brake_level_raw`、41.4 Hz、単位不明) として
+2026-11-18 に足した ([signals_rav4.md](signals_rav4.md) 2 章)。
 `ESP_CONTROL` (0x3B7) はビット定義が未取得。理由は
 [signals_rav4.md](signals_rav4.md) 2 章。
 

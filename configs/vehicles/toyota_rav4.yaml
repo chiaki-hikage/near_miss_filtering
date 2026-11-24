@@ -331,8 +331,32 @@ signals:
     unit: "-"
     kind: continuous
     validated: false
-    enabled: false        # 加速中に最大値を示す。ビット位置が疑わしいので使わない
-    note: "docs/signals_rav4.md 2章"
+    enabled: false        # 位置が誤り。下の BRAKE_LEVEL を使う
+    note: |
+      opendbc toyota_new_mc_pt の位置 (start 43, 12 bit)。この車では byte5 の下位 4 bit と byte6 (常に 0) を
+      読むので、値は 256 の倍数になる。docs/signals_rav4.md 2章。
+      2026-11-18 訂正: byte5 はカウンタではなく制動の連続値だった (BRAKE_LEVEL)。
+
+  # 2026-11-18 追加。DBC (opendbc) に無い位置で、全バイトの総当たりで見つけた (docs/brake_fade_datasets.md 6 章)。
+  #   byte4 の bit0 + byte5 の 9 bit。byte4 は Chunk 1〜2 の全 948,368 フレームで 0 か 1 だけ (観測の最大 438)。
+  #   踏んでいないときは 0〜5、踏むと増え、走行中の減速度とほぼ比例する。openpilot の自動ブレーキでは上がらない。
+  #   実測油圧・踏力・踏み込み量のどれかは確定していない (docs/brake_performance_rav4.md 2 章)。単位は不明。
+  #   既存の検出 (features.py) が自動で使う brake_pressure とは別の名前にしてある。既存の結果を変えないため。
+  BRAKE_LEVEL:
+    can_id: 548
+    start_bit: 32
+    length: 9
+    signed: false
+    bus: 0
+    factor: 1.0
+    offset: 0.0
+    sign: 1.0
+    unit: "-"
+    kind: continuous
+    channel: brake_level_raw
+    validated: true       # 復号の位置と振る舞いは検証済み (tests/test_brake_decode.py)。物理量と単位は未確定
+    enabled: true
+    note: "物理単位不明の制動関連信号。相対値としてだけ使う"
 
 # 復号し直した舵角。processed_log/CAN/steering_angle と比べる。
 derived:

@@ -1,0 +1,31 @@
+# NCST のフェードの評価を、安全上の影響が分かる形にまとめる (scripts/brake/ncst_fade_safety.py)。
+# 説明: docs/brake_fade_safety.md
+
+inputs:
+  dyno_events: out/brake_fade/20261118_r9_force_vs_temp/brake_events_force.csv   # 台上試験の制動ごとの利き
+  dyno_summary: out/brake_fade/20261118_r9_force_vs_temp/summary.json
+  road_timeline: out/brake_fade/20261119_r22_ncst_route_scene/timeline_grade.csv   # 路上 (高速道路) の 1 s ごとの表
+
+dyno:
+  hot_C: 130            # 「高温」の下限 (台上の 130 ℃ 以上はすべて UDDS)
+  cold_C: 50            # 基準 (50 ℃ 未満)
+  pushout_psi: 1.2      # 押し出し圧 (ncst_force_vs_temp と同じ)
+  # 信頼できない制動を除く条件: 惰行の力 F0 が全体の力 F に占める割合が大きい (利き = F - F0 が F0 の推定誤差に左右される) か、弱い踏み込み
+  max_f0_frac: 0.4
+  min_psi: 15.0
+  per_C: 30             # UDDS の中の温度の傾きを、この温度差あたりで示す
+  bootstrap: 4000
+  seed: 20261119
+
+road:
+  brake_on_psi: 5.0
+  window_min: [140.0, 158.5]   # 2 本の下り (20261119_r22)
+  T_pre_s: 3                   # 踏み始めの温度 = 直前この秒数の平均
+
+# 停止距離の試算 (仮定のシナリオ。NCST の実測ではない)
+stopping:
+  speeds_kmh: [50, 80, 100]
+  base_decel_mps2: [3.0, 4.0, 5.0]   # 仮定: 正常時の平均減速度。図には中央の値を使い、表に幅を出す
+  reaction_s: 1.5                    # 仮定: 運転者の反応時間
+  actuation_s: 0.45                  # FMVSS 121 S5.3.3 のトラックの作動時間の上限 (60 psi に達するまで)。この間は減速なしとみなす (保守側)
+  efficiency_drops: [0.09, 0.20]     # 利きの低下の仮定: 車速・圧力で調整した推定 (約 9%) と、調整前の差 (約 20%)

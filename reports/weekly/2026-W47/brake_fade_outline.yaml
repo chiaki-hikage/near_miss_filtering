@@ -1,0 +1,73 @@
+# ブレーキフェードの検討 (NCST・Udacity・comma2k19) の報告。4 枚 (2026-11-19、構成はユーザーの案を叩き台にした)
+# 作り方: .claude/skills/weekly-slides/SKILL.md。4 枚なので設定は brake_fade_report_config.yaml (min_slides だけ 4)
+#   uv run --offline python scripts/report/brake_fade_slides_figs.py --out reports/weekly/2026-W47/brake_fade_fig
+#   uv run --extra report python scripts/report/build_weekly_pptx.py reports/weekly/2026-W47/brake_fade_outline.yaml \
+#       --config reports/weekly/2026-W47/brake_fade_report_config.yaml --out reports/weekly/2026-W47/brake_fade_2026-W47.pptx
+# notes (原稿) は付けない: 前回からの変更点の表を使わないので、changes.md を書き換えない
+
+week: 2026-W47
+title: ブレーキフェードの検討
+header: "ブレーキフェードの検討 (NCST・Udacity・comma2k19) 進捗報告  |  2026-11-19"
+period_start: 2026-11-16
+period_end: 2026-11-22
+
+slides:
+  - title: フェード分析に向けたデータセットの選定
+    message: 温度と効きの評価に NCST、映像付きの走行場面に Udacity・comma2k19 を使う
+    visual:
+      image: reports/weekly/2026-W47/brake_fade_fig/fig1_datasets.png
+    notes:
+      - "NCST は台上試験と路上走行を含む。映像と IMU は無い"
+      - "Udacity のトルク (Nm) は減速の約 7 割しか説明せず、意味は要確認"
+      - "comma2k19 の制動の連続値は単位が未確定 (マスターシリンダ圧と推定)"
+      - "回分 = 100 km/h からの停止 1 回 (386 J/kg)。PDR・GR Cup は条件確認待ち"
+    evidence:
+      - docs/brake_fade_datasets.md
+      - docs/brake_fade_datasets_round2.md
+      - docs/udacity_hmb_brake.md
+      - out/brake_performance/
+
+  - title: ブレーキ温度と制動性能の関係 (NCST 台上試験)
+    message: 130 ℃ 以上で効きが約 2 割低い傾向。車速の影響と未分離で、フェードは未確認
+    visual:
+      image: reports/weekly/2026-W47/brake_fade_fig/fig2_temp_eff.png
+    notes:
+      - "130 ℃ 以上の 16 回はすべて UDDS (車速が約 2 倍) で、車速と分離できない"
+      - "50〜130 ℃ では効きが約 1 割高い (暖機と試験の順番が重なる)"
+      - "温度はライニング内の熱電対で、表面より低い可能性がある"
+      - "押し出し圧・惰行の力の扱いを変えても、130 ℃ 以上は 0.76〜0.92"
+    evidence:
+      - out/brake_fade/
+      - scripts/brake/ncst_force_vs_temp.py
+      - docs/brake_fade_feasibility.md
+
+  - title: 実走行のブレーキ熱負荷 (NCST 大型トラック)
+    message: 峠の下り坂 2 本の反復制動で、ブレーキ温度が 85 ℃ から最高 159 ℃ まで上昇
+    visual:
+      image: reports/weekly/2026-W47/brake_fade_fig/fig3_ncst_road.png
+    notes:
+      - "下り坂 (水色) はエンジンの信号で判定。勾配は経路を推定し地図の標高から算出"
+      - "フェードリスク (温度・連続制動・下り坂、0〜100) は下りで High、最大 79"
+      - "下りは 10〜20 psi の反復制動。間の平らな区間はほぼ踏まず温度は横ばいへ"
+      - "車速の記録は約 5% だけで、下り 2 の位置は数 km ずれうる"
+    evidence:
+      - out/brake_fade/
+      - scripts/brake/ncst_route_grade.py
+      - scripts/brake/fade_risk_index.py
+      - configs/brake/ncst_route.yaml
+      - docs/brake_fade_feasibility.md
+
+  - title: 下り坂走行の熱負荷 (Udacity 前方映像付き)
+    message: 約 200 m の下りでもブレーキの負担は 2 割弱で、熱負荷は小さい
+    visual:
+      image: reports/weekly/2026-W47/brake_fade_fig/fig4_udacity.png
+    notes:
+      - "位置エネルギーの 44% は駆動側の負のトルク (エンジンブレーキか回生)"
+      - "熱の指標は最大 352 J/kg (停止 0.9 回分)、comma2k19 の最大の約 0.4 倍"
+      - "フェードリスクは最大 41 (Medium)。効きの低下は無く、フェードは判定しない"
+      - "442.7 s の映像は山道の下りで前の車に続く減速。温度の記録は無い"
+    evidence:
+      - out/brake_fade/
+      - scripts/brake/udacity_hmb_heat.py
+      - docs/udacity_hmb_brake.md
+      - docs/brake_fade_risk_index.md

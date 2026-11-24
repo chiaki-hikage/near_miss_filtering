@@ -1,0 +1,41 @@
+# TartanDrive 2.0 (オフロードの異常振動) の報告。2 枚 (2026-11-24、構成はユーザーの案を叩き台にした)
+# 作り方: .claude/skills/weekly-slides/SKILL.md。2 枚なので設定は td2_report_config.yaml (min_slides だけ 2)
+#   uv run python scripts/report/td2_slides_figs.py --out reports/weekly/2026-W48/td2_fig   (合意のあとに作る)
+#   uv run --extra report python scripts/report/build_weekly_pptx.py reports/weekly/2026-W48/td2_outline.yaml \
+#       --config reports/weekly/2026-W48/td2_report_config.yaml --out reports/weekly/2026-W48/td2_2026-W48.pptx
+
+week: 2026-W48
+title: オフロードの異常振動 (TartanDrive 2.0)
+header: "オフロードの異常振動 (TartanDrive 2.0) 進捗報告  |  2026-11-24"
+period_start: 2026-11-23
+period_end: 2026-11-29
+
+slides:
+  - title: TartanDrive 2.0 の概要と異常振動の候補
+    message: オフロード 3.5 h から異常振動の候補 124 件、うち 22 件は車両の挙動も変化
+    visual:
+      image: reports/weekly/2026-W48/td2_fig/fig1_overview.png
+    notes:
+      - "候補 = 前後 ±30 s より揺れが 2.5 倍以上突出した所。危険だったかは評価していない"
+      - "段 C = ヨー・ロール・後輪の左右差など挙動の変化 + 操作か別の挙動 (無作為の時刻は 7%)"
+      - "揺れの強さそのものは普段から comma2k19 の約 5 倍。閾値はデータ内の相対順位で決めた"
+      - "ブレーキとアクセルの信号は名前と中身が逆 (直して集計)。舵角は指令値とみて使わない"
+    evidence:
+      - docs/offroad_vibration_datasets.md
+      - docs/offroad_tartandrive2_poc.md
+      - docs/offroad_tartandrive2_candidates.md
+      - out/offroad/tartandrive2/
+
+  - title: 代表的な異常振動の例 (V18、草地の溝)
+    message: 溝で上下 1.6 G の衝撃。アクセルを戻し、12 km/h から 3 km/h へ急減速
+    visual:
+      image: reports/weekly/2026-W48/td2_fig/fig2_v18.png
+    notes:
+      - "前方の画像 3 枚 (衝撃の前・衝撃・後) と、揺れ・上下加速度・速度・ペダルの時系列"
+      - "ブレーキは踏んでいない。急減速 (−3.0 m/s²) は衝撃とアクセルを戻したことによる"
+      - "状況 (衝撃の前の減速・衝撃・急減速) は信号からの自動の検出で、人の確認は未了"
+      - "ペダルの時刻は IMU に合わせて補正済み (残る遅れ 約 0.6 s)"
+    evidence:
+      - docs/offroad_tartandrive2_review.md
+      - out/offroad/tartandrive2/
+      - scripts/offroad/td2_review_overlay.py

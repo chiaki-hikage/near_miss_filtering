@@ -1,0 +1,57 @@
+# フェードリスク指標 (0〜100 のスコアと High / Medium / Low)。scripts/brake/fade_risk_index.py
+# 説明: docs/brake_fade_risk_index.md
+#
+# フェードの「確率」ではない。リスクが高そうな場面を並べて見るための、暫定の目安。
+# 4 つの成分をそれぞれ 0〜1 にそろえ、重みつきの平均 × 100 をスコアとする。測れない成分は除き、残りの重みで平均する。
+# 成分の 0 と 1 の点 (lo / hi) は、根拠をコメントに書く。根拠の弱いものは「暫定」と書く。
+
+components:
+  thermal:            # 熱の状態
+    weight: 0.4
+    temperature_C:    # NCST: 実測のブレーキ温度 (ライニングの表面から 2 mm)
+      lo: 93          # FMVSS 121 の台上試験の初めの温度の上限 (200 °F)。ライニングに埋めた熱電対で測る点が NCST と近い
+      hi: 163         # NCST の台上で利きが低く出た温度域 (127〜164 ℃) の上端。これより上のデータは無い
+    brake_work_E300_Jkg:   # Udacity・comma2k19: 直前 300 s のブレーキの仕事 (温度の代わり)
+      lo: 0
+      hi: 946         # FMVSS 121 S5.4.2 (フェードの試験) の仕事のペース: 50→15 mph の減速 10 回 (約 2,270 J/kg) を 720 s で行う → 300 s あたり約 946 J/kg。大型車の規格の値を物差しに使うだけ (乗用車のブレーキの熱容量は違う)
+  continuous:         # 連続制動: 直前 300 s のうちブレーキを踏んでいた時間の割合
+    weight: 0.2
+    window_s: 300
+    lo: 0.0
+    hi: 0.5           # 暫定: 半分の時間を踏み続けたら 1
+  downhill:           # 下り坂: 直前 300 s の平均勾配 (下りを正)
+    weight: 0.2
+    window_s: 300
+    lo_pct: 0.0
+    hi_pct: 6.0       # 暫定: 6% の下りが続いたら 1 (NCST の Cajon Pass の下りの最も急な所は 6.6%)
+  degradation:        # 制動効率の低下の兆候: 平常のモデルに対する利き (eta) の低下
+    weight: 0.2
+    window_s: 300     # 直前 300 s の制動の eta の中央値を使う (1 回ごとのばらつきを抑える)
+    lo_drop: 0.0
+    hi_drop: 0.2      # 暫定: 平常より 2 割低ければ 1 (comma2k19 の利きの比のばらつきは約 11%)
+    thermal_gate: 0.2 # 熱の状態の成分がこれ未満の時刻は 0 にする。フェードは熱による低下なので、冷えた状態の利きのばらつきは数えない
+                      # (最初の版 r26 では、Udacity の冷えた制動の利きのばらつきが「低下の兆候」として出た)
+
+# データセットごとに使う成分 (測れない成分は最初から除き、残りの重みで平均する)。
+# 時刻によって成分が欠けるとき (NCST の地図の勾配の範囲外など) は、スコアを空欄にする (重みを配り直すとスコアが飛ぶため)
+available:
+  ncst: [thermal, continuous, downhill]
+  udacity: [thermal, continuous, downhill, degradation]
+  comma2k19: [thermal, continuous, downhill, degradation]
+
+rank:
+  high: 60
+  medium: 30
+
+top_scenes:
+  per_dataset: 3          # ブレーキを踏んでいる時刻のうち、スコアの高い順。2 件目以降は Medium 以上だけ
+  min_separation_s: 300   # 同じ走行の中では、これより離れた峰だけを別の場面とする
+
+inputs:
+  ncst_timeline: out/brake_fade/20261119_r22_ncst_route_scene/timeline_grade.csv
+  ncst_window_min: [125, 165]
+  udacity_timeseries: out/brake_fade/20261119_r18_udacity_hmb2_scene/timeseries_5hz.csv.gz
+  udacity_events: out/brake_fade/20261119_r18_udacity_hmb2_scene/brake_events.csv
+  udacity_brake_on_Nm: 30.0
+  udacity_cold_H300_Jkg: 200.0   # eta の平常の基準 = 熱の少ない制動の eta の中央値 (udacity_hmb.yaml と同じ)
+  comma2k19_events: out/brake_performance/20261118_r8_rav4/events.csv   # 制動ごとの E300・勾配・eta (学習に使っていない走行で出した値)

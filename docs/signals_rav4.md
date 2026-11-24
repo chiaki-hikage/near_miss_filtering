@@ -289,12 +289,40 @@ src = 128 として観測された。**この区間の操舵と車間制御は o
 それでも値は使えない。バス 0 に絞った後の値は**すべて 256 の倍数**
 (768, 1536, 2560, 3584, 1280, 2048, 3328, …) になる。start_bit 43 / length 12 は
 byte5 の下位 4 ビットと byte6 にまたがるが、bus0 のフレームでは byte6 が常に 0 で、
-取り出しているのは byte5 の下位ニブルだけ。byte5 はカウンタなので、
-これは制動入力ではない。
+取り出しているのは byte5 の下位ニブルだけ。~~byte5 はカウンタなので、
+これは制動入力ではない。~~
 
-**結論: ビット位置が誤り。無効のまま据え置く**
-(`configs/vehicles/toyota_rav4.yaml` の `enabled: false`)。
-制動の有無は `BRAKE_PRESSED` で代替できる。踏力に相当する量は現状取れない。
+> **2026-11-18 訂正:** 「byte5 はカウンタ」は誤りだった。byte5 は踏み始めから滑らかに増え、
+> 踏んでいないときは 0〜5 に戻る制動の連続値だった (Chunk 1〜2 の全 948,368 フレームで確認)。
+> 誤りは、この DBC の位置が byte5 の下位 4 bit だけを 256 倍して読むため、値が飛び飛びに見えたことによる。
+> 値そのものは下の BRAKE_LEVEL として復号する。
+
+**結論: この DBC の位置は誤り。無効のまま据え置く**
+(`configs/vehicles/toyota_rav4.yaml` の `enabled: false`)。制動の連続値は BRAKE_LEVEL を使う。
+
+### BRAKE_LEVEL (CAN ID 548 = 0x224, byte4 の bit0 + byte5、9 bit、bus 0) — 2026-11-18 追加
+
+DBC に頼らず、全メッセージの全バイトを、ブレーキの on/off と輪速から作った減速度に突き合わせて見つけた
+([brake_fade_datasets.md](brake_fade_datasets.md) 6 章)。設定は `configs/vehicles/toyota_rav4.yaml` の `BRAKE_LEVEL`
+(チャネル名 `brake_level_raw`)、試験は `tests/test_brake_decode.py`。
+
+| 確かめたこと | 結果 |
+|---|---|
+| 使っているビット | byte4 は 0 か 1 だけ (1 は 669 フレーム)、byte5 は 0〜255。最大 438。DBC の表記で start_bit 32、length 9 |
+| 踏んでいないとき (走行中) | 0〜5 (多くは 0〜2) |
+| ペダルのスイッチとの前後 | 上がり始めはスイッチと同時 (0.05 s の分解能で中央値 0 s)。戻りはスイッチより 0.15 s 早い |
+| 減速度との対応 (走行中に踏んでいる間) | 時刻ごとの相関 0.87。勾配を補正した正常制動の模型で、学習に使っていない走行の R² 0.93 ([brake_performance_rav4.md](brake_performance_rav4.md)) |
+| 停止中に踏み続けたとき | 値が残る (中央値は走行中の p99 の約 50%) |
+| openpilot の自動ブレーキのとき | 上がらない (減速の中央値 0.85 m/s² の間も 5 以下) |
+| 別の RAV4 2017 世代の車 (commaCarSegments、1 本) | 同じ位置に同じ形の値がある (踏んだときに 77 まで) |
+
+**物理量と単位は確定していない。** 実測油圧・踏力・踏み込み量のどれかを公開の DBC で決められない。
+RAV4 TSS2 の 0x226 の `BRAKE_PRESSURE` (DBC の注記 "seems prop to pedal force") とは振る舞いが近く、
+`BRAKE_POSITION` (注記 "seems proportional to pedal displacement") とは違う。踏み込み量ではないと考えるが、
+油圧と踏力は倍力装置を通してほぼ比例するので、この 2 つは区別できない。**物理単位不明の、運転者側の制動操作量**として、
+同じ車の中の相対値としてだけ使う。既存の検出 (features.py) が自動で使う `brake_pressure` とは別の名前にしてある。
+推定 (2026-11-18): TSS2 の `BRAKE_PRESSURE` は参照 DBC のマスターシリンダ圧 `PMC` (0.02 MPa 刻み) の下位 9 bit と同じビットで、減速度あたりの刻みも RAV4 2017 とほぼ同じ。
+マスターシリンダ圧の可能性が高いが、確定はしていない ([brake_performance_rav4.md](brake_performance_rav4.md) 2 章)。
 
 ### ASLP (CAN ID 800, start_bit 23) — 勾配だが要スケール補正
 

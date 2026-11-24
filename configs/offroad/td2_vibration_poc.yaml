@@ -1,0 +1,229 @@
+# TartanDrive 2.0 の強い振動の抽出と評価の PoC (2026-11-17)。scripts/offroad/td2_vibration_poc.py が読む。
+# 値の根拠は docs/offroad_tartandrive2_poc.md。comma2k19 の結果は読むだけで、書き換えない。
+
+data_dir: data/offroad/tartandrive2/kitti/all_topics
+grid_hz: 100.0
+min_run_s: 30.0              # これより短い走行は使わない
+max_imu_gap_s: 0.05          # IMU の時刻の抜けがこれより長い所を含む窓・イベントは使わない
+
+imu:
+  topic: novatel_imu         # 100 Hz。KITTI の値が bag の元のメッセージと一致することを確かめた (2026-11-17)
+  # 列の対応はデータで確かめた: 2 列目 = ヨー角速度 (gps_odom の角速度 z と r = 0.92)、
+  # 4 列目 = 左右 (旋回と相関)、3 列目 = 前後 (速度の微分と r = 0.96)、5 列目 = 上下 (平均 +9.7 m/s²、重力を含む)
+  cols: {wx: 0, wy: 1, wz: 2, ax: 3, ay: 4, az: 5}
+
+speed:
+  topic: gps_odom            # 13 列。7〜9 列目の速度ベクトルの大きさ (位置の微分と r = 0.97〜0.99)。座標系は世界系とみられるので大きさだけ使う
+  cols: [7, 8, 9]
+
+moving_min_speed_mps: 1.0    # 走行中とみなす速度 (オフロードは遅いので comma の 5 m/s より下げる)
+comma_like_min_speed_mps: 5.0  # comma2k19 の普段の窓 (configs/vibration.yaml の min_speed_mps) と同じ条件の部分集合
+standstill_max_speed_mps: 0.3  # 停車中 (エンジンの振動の床を見る)
+
+# comma2k19 と同じ評価量: 座面の係数で合成した 1 秒移動 RMS の最大 (scripts/vibration/iso2631_events.py の iso_metrics)
+windows:
+  step_s: 5.0                # comma の普段の窓と同じく 5 s ごと
+  near_s: [-1.0, 2.0]        # 窓の中の最大を取る範囲 (comma と同じ)
+lp8_hz: 8.0                  # 感度: 上下の 8 Hz 以上を落とした値も出す (comma と同じ)
+
+comma_reference:
+  normal_windows: out/vibration/near_miss/iso2631_normal_windows.csv
+  events: out/vibration/near_miss/iso2631_events.csv
+  candidate_floor: 0.9       # comma の異常振動候補 21 件の MTVV の下限の目安 (0.917)
+
+events:
+  # TartanDrive 2.0 の中での強い振動: 走行中の窓の MTVV の上位 1% を閾値にする (データから決める)
+  threshold_percentile: 99.0
+  min_separation_s: 3.0      # これより近いピークは 1 つにまとめる
+  iso_levels: [0.9, 1.373, 2.0]   # 数を数えるだけの目安 (comma の候補の下限・comma の普段の p99・ISO の「極めて不快」)
+
+shock:
+  topic: shock_pos
+  use_cols: {RL: 2, RR: 3}   # 前の 2 列は全走行で 0 (センサが無いか、つながっていない)。単位は inch とされる (TartanDrive 1 の README)
+  band_hz: [0.5, 10.0]       # ストローク速度の帯域
+  # racepak の時刻は IMU に対して遅れており、遅れは走行の中でも 0.4〜1.9 s で動く (包絡線の相互相関、60 s ごと)。
+  # 1 本のずらしでは合わせられないので、イベントの時刻 te に対して shock の時刻で [te + lag_lo, te + lag_hi] の最大を見る
+  lag_range_s: [0.0, 2.5]
+  null_samples: 3000         # 比べる無作為の時刻 (走行中) の数
+  null_exclude_s: 5.0        # イベントから近い時刻は無作為の時刻から外す
+  speed_match_abs_mps: 1.0   # 速度をそろえた比較の幅: ±max(abs, rel × 速度)
+  speed_match_rel: 0.25
+  extreme_percentiles: [0.1, 99.9]   # 全走行のストロークのこの端に入ったら「端に近い」(底付き・伸び切りの代わり。止まりの位置は分からない)
+  lag_search:                # 遅れの推定 (報告用)
+    env_band_hz: [2.0, 10.0]
+    env_smooth_hz: [0.1, 2.0]
+    block_s: 60.0
+    range_s: [-2.5, 1.5]
+
+reaction:                    # 運転操作の変化 (E の手がかり。racepak の時刻のずれがあるので参考)
+  controls_topic: controls   # racepak/rp_controls。型の定義では 0 列目 = throttle、1 列目 = brake (KITTI の列も同じ順)。単位は確かめていない
+  # 2026-11-18: 名前と中身が逆だった (データで確かめた。docs/offroad_tartandrive2_review.md 6.3)。
+  #   0 列目 (throttle): ふだん約 11.5 で、急減速 (≤ −1.3 m/s²) の 45% で 15 を超える (一定速では 4%) → ブレーキの振る舞い
+  #   1 列目 (brake):    加速度と正の相関が 45 走行中 44 (中央値 r ≈ 0.44、加速が約 0.8 s 遅れて続く) → アクセルの振る舞い
+  # それより前の結果 (r3〜r24、20261118_r1〜r5) は「0 列目 = スロットル、1 列目 = ブレーキ」として扱っている
+  controls_cols: {brake: 0, throttle: 1}
+  controls_invalid_above: 6000.0   # 1 列目 (アクセルとみられる) に出る飛び値
+  brake_invalid_above: 6000.0
+  steering_topic: steering_angle   # 単位は確かめていない
+  pre_s: 2.0                 # 前の平均 (racepak の時刻で te + lag_lo からさかのぼる)
+  post_s: 3.0                # 後の範囲 (te + lag_lo から)
+  flag_percentile: 95.0      # 無作為の時刻での変化のこの上位に入ったら「操作の変化あり」
+
+report:
+  top_n_panels: 8
+
+frames:                      # 確認用のカメラ画像 (scripts/offroad/td2_event_frames.py)。特徴抽出には使わない
+  topic: /multisense/left/image_rect_color
+  offsets_s: [-1.5, -0.5, 0.0, 0.5]   # イベントの時刻 (IMU) からの秒
+  max_frame_offset_s: 0.15
+  edge_margin_s: 3.0         # (2026-11-17 r4・r5 で使用。r7 からは max_file_hops に置き換え)
+  max_file_hops: 2           # r7 で使用。分割ファイルは実際は約 120 s で、推定 (96〜101 s) とのずれが積み重なるので、r8 からは分割ファイルの数まで移る
+  timing_topics: [/shock_pos, /wheel_rpm, /controls, /novatel/imu/data, /multisense/imu/imu_data, /multisense/left/image_rect_color]
+  max_download_mb: 300       # 1 回の実行で取る量の上限 (索引とチャンクの合計)。r4・r5 は 120。2026-11-17 の追加の承認は計 500 MB まで
+
+reliability:                 # scripts/offroad/td2_reliability.py (2026-11-17 追加)
+  windows:                   # racepak の時刻で [te + a, te + b]。ctrl_* は時刻をわざとずらした対照
+    base: [0.0, 2.5]         # PoC と同じ
+    mode_narrow: [1.0, 1.8]  # 遅れの最頻のあたりだけ
+    early: [0.0, 1.0]
+    late: [1.5, 2.5]
+    wide: [-0.5, 3.5]
+    ctrl_before: [-5.0, -2.5]
+    ctrl_after: [5.0, 7.5]
+    ctrl_far: [15.0, 17.5]
+  local_s: 30.0              # 近くの時刻: 同じ走行の ±30 s
+  local_exclude_s: 5.0       # イベントから 5 s 以内は外す
+  episode_gap_s: 10.0        # 同じ走行でこれより近いイベントは 1 エピソード
+  bootstrap: 2000
+  impulse_lag:
+    az_band_hz: [1.0, 20.0]
+    env_lp_hz: 4.0
+    peak_percentile: 99.7    # 走行中の |上下加速度| のこの上位を衝撃とする
+    min_separation_s: 4.0
+    half_window_s: 1.0
+    lag_range_s: [-0.5, 3.0]
+    min_corr: 0.6            # 推定を使う条件: 相関の山の高さ
+    min_margin: 0.1          # と、0.3 s より離れた次の山との差
+
+racepak_timing:              # scripts/offroad/td2_racepak_timing.py (2026-11-17 追加)
+  topics: [/shock_pos, /controls, /wheel_rpm, /novatel/imu/data]
+  max_download_mb: 60
+
+sync_correct:                # scripts/offroad/td2_sync_correct.py (2026-11-17 追加)。racepak の時刻の 2 状態 (+0 / +1 s) の補正
+  env_band_hz: [2.0, 10.0]
+  env_lp_hz: 2.0
+  win_s: 20.0
+  step_s: 5.0
+  cand_lag_s: [0.0, 0.8]     # 状態 0 の遅れの候補の範囲。状態 1 はこれ + 1.0 s
+  min_margin: 0.05           # 相関の差がこれより小さい窓は、前後の窓で埋める
+  fill_neighbors: 3
+  windows:                   # 照合の窓 [te + a, te + b] (racepak の時刻)。補正前と補正後の両方で計算する
+    base: [0.0, 2.5]
+    narrow: [0.0, 1.0]
+    tight: [0.2, 0.7]
+    state1_tight: [1.2, 1.7]
+    ctrl_after: [5.0, 7.5]
+  compare_impulse_lags: 20261117_r6/impulse_lags.csv
+
+adaptive:                    # scripts/offroad/td2_adaptive_detector.py (2026-11-17 追加)。その場の普段との比で取る検出
+  context_s: 30.0            # 前後 ±30 s の MTVV_total の中央値を「その場の普段」とする
+  contrast_min: 2.5          # 比がこれ以上のピーク (PoC の 29 件の比の中央値は 2.5)
+  min_mtvv: 1.0              # 停車に近い所の小さい値を拾わないための下限 [m/s²]
+  window: [0.2, 0.7]         # 補正した racepak の時刻での照合の窓 (td2_sync_correct.py の tight)
+adaptive_compare_poc: out/offroad/tartandrive2/20261117_r3
+
+profile:                     # scripts/offroad/td2_candidate_profile.py (2026-11-17 追加)。候補 124 件の特徴づけ
+  racepak_latency_s: 0.59    # 補正後に残る一定の遅れ (r10 の当てはめ 遅れ = 0.59 + 1.01 / 速度 の切片)。運転操作の時刻から引く
+  context_s: 10.0            # 姿勢・左右差の「普段」(前後 ±10 s の中央値)
+  response_s: 2.0            # 応答を見る範囲 [te − 1, te + 2] (te は 1 秒移動 MTVV の最大。衝撃は te の 0〜1 s 前)
+  yaw_band_hz: [0.5, 3.0]    # ヨー角速度の急な変化 (操舵による遅い旋回を除く)
+  wheel_min_rpm: 20.0
+  wheel_median_n: 5          # 後輪の回転の 1 サンプルの飛び値を除く中央値フィルタ (r20 から。r12・r17 は無し)
+  brake_onset_rise: 3.0      # ブレーキの立ち上がりとみなす上がり (単位未確認の値のまま)。20261118_r6 から 0 列目 (ふだん約 11.5) に合わせた。r12〜r20 は 1 列目に 30
+  edge_s: 5.0                # 走行の先頭・末尾からこれより近い候補に印を付ける (1 秒移動 RMS の立ち上がりの影響)
+  null_per_candidate: 10
+  single_max_duration_s: 1.5 # 「単発」: MTVV が最大の半分以上の長さがこれ以下で、
+  single_min_crest: 4.0      #          上下の波高率がこれ以上
+  flags:                     # 無作為の時刻の pct 百分位を閾値にする
+    yaw: {col: yaw_dist_dps, pct: 95, group: vehicle, label: ヨーの急な変化}
+    roll: {col: roll_dev_max_deg, pct: 95, group: vehicle, label: ロール角の振れ}
+    stroke_extend: {col: neg_stroke_min, pct: 99, group: vehicle, label: ストロークの伸び側の端}
+    stroke_compress: {col: stroke_max, pct: 99, group: vehicle, label: ストロークの縮み側の端}
+    wheel_lr: {col: wheel_lr_jump, pct: 95, group: vehicle, label: 後輪の回転の左右差の急変}
+    speed_drop: {col: speed_drop, pct: 95, group: vehicle, label: 速度の落ち}
+    brake: {col: brake_rise, pct: 95, group: driver, label: ブレーキとみられる信号}
+    throttle: {col: throttle_drop, pct: 95, group: driver, label: スロットルとみられる信号を戻す}
+    steer: {col: steer_rate_max, pct: 95, group: driver, label: 速い操舵 (時刻は未補正)}
+
+media:                       # scripts/offroad/td2_event_media.py (2026-11-17 追加)。人が確認するための動画と図
+  tar: image_left_color.tar  # KITTI 形式の前方カラー画像 (PNG、1 枚 約 1.1 MB)
+  span_s: [-2.5, 1.5]        # te からの範囲 (衝撃は te の 0〜1 s 前)
+  frame_step: 3              # 10 Hz の 3 枚に 1 枚 (約 3.3 Hz)。取得量を抑えるため
+  slow_factor: 3             # 遅い版の動画の倍率
+  strip_n: 6                 # 図に並べる画像の数
+  check_search: 3            # フレームの時刻の確かめで見る前後の枚数
+  max_download_mb: 125       # 1 回の実行の上限。2026-11-17 の追加の画像の承認 500 MB の残り (約 134 MB) の範囲
+
+artifacts:                   # scripts/offroad/td2_racepak_artifacts.py (2026-11-17 追加)。racepak の計測の誤りとみられる所
+  hp_hz: 5.0
+  win_s: 0.5
+  rms_pct: 99.0
+  corr_max: -0.7             # 左右の高域の相関がこれ以下 = 鏡写し
+  burst_window_s: [-2.5, 2.0]  # 候補の te に対し、この範囲に鏡写しの振れがあれば印
+  brake_window_s: [-2.0, 1.0]
+
+review:                      # scripts/offroad/td2_review_set.py・td2_review_media.py (2026-11-17 追加)。人のレビューの対象と点検
+  n_random_A: 20             # 段 A (振動だけ) から無作為に選ぶ数 (段 C は全件)
+  seed: 20261117
+  check_window_s: [-4.0, 3.0]   # 品質の点検と状況を見る範囲 (te から)
+  yaw_lp_hz: 0.5
+  turn_yaw_dps: 10.0         # 自動の状況の目安: ヨー角速度の低域の平均がこれ以上なら「旋回中」
+  slope_deg: 5.0             # ロール角・ピッチ角の前後 ±10 s の中央値がこれ以上なら「斜面」
+  crest_pitch_change_deg: 8.0   # ピッチ角 (0.5 Hz 以下) の振れ幅がこれ以上なら「登り下りの切り替わり」
+  racepak_gap_s: 0.2
+  wheel_spike_rpm: 30.0
+  gps_jump_mps2: 15.0
+  edge_s: 5.0
+  form_columns: [cause_visible, road_cause, vehicle_behavior, expected_or_unexpected, artifact_suspected, safety_relevant, confidence, note]
+  media_span_s: [-3.5, 1.5]
+  media_frame_step: 3
+  map_span_s: 15.0           # 軌跡の図に描く範囲 (te の前後)
+
+overlay:                     # scripts/offroad/td2_review_overlay.py (2026-11-18 追加)。車体のイラストと運転操作を重ねた動画
+  span_s: [-8.0, 4.0]        # te からの範囲 (r24 と同じ。画像はキャッシュにある)
+  frame_step: 1              # 10 枚/s
+  heave_band_hz: [0.7, 20.0] # 車体の上下のずれに使う上下加速度の帯域 (comma の振動の動画と同じ考え方)
+  iso_max: 8.0
+  gains:
+    unit_per_ms2: 1.5        # 上下加速度 1 m/s² → イラストの 1.5 単位 (車幅 160 単位)
+    angle_gain: 1.5          # ロール角・ピッチ角を 1.5 倍に誇張して描く
+    unit_per_inch: 6.0       # 後輪のストローク 1 inch → 6 単位 (誇張。車幅 160 単位 ≈ 1.5 m なら実寸は約 2.7 単位)
+    susp_len: 28.0           # 車体の取付点からタイヤの中心までの基準の長さ (模式)
+    stroke_hi: 0.6           # 基準からの差がこれ (inch) を超えたらサスペンションを橙で描く
+    yaw_arc_deg_per_dps: 3.0 # (20261118_r1・r2 で使用。上から見た図はやめた)
+    color_lo: 0.8            # タイヤの色: ISO 1 秒 RMS がこれ以下は濃い灰 (ISO の「不快」の下限)
+    color_hi: 6.0            #             これ以上は赤 (間は橙を通る)
+  speed_max_kmh: 50          # 速度計の目盛りの上限 (全走行の最高は約 14 m/s ≈ 50 km/h)
+  pedal_scale:               # ペダルの 0〜100% の目盛り (全走行の値。2026-11-18。controls_cols で読んだ後の値)
+    brake_zero: 11.5         # ブレーキ (0 列目) のふだんの値 (中央値)
+    brake_full: 23.0         # p99
+    throttle_zero: 73.1      # アクセル (1 列目) の p1
+    throttle_full: 325.3     # p99
+  events:                    # 状況の欄の自動の検出 (2026-11-18 追加)
+    impact_ms2: 10.0         # 大きな衝撃: |上下加速度 (重力を除く)| がこれ以上
+    impact_sep_s: 1.0
+    speed_lp_hz: 1.0         # 前後の加速度は、GPS の速度を 1 Hz 以下にしてから微分
+    decel_ms2: -1.3          # 急減速: 前後の加速度がこれ以下 (全走行の走行中の下位 1% は −1.32 m/s²、0.5% は −1.56)
+    brake_on_pct: 50.0       # (20261118_r3 で使用。走行中も 50% を超えることが多く、使わない)
+    brake_rise_pct: 30.0     # ブレーキの立ち上がり: 前 1 s の最小から、走行の p1〜p99 の 30% 以上上がった時刻
+    impact_search_s: [-1.5, 0.5]   # 軸にする衝撃を探す範囲 (te から)。この中の |上下加速度| の最大
+    post_s: 3.0              # 衝撃のあと、この秒までの急減速・ブレーキを「衝撃のあと」とする
+    yaw_lp_hz: 0.5           # 向きの急な変化: ヨー角速度を 0.5 Hz 以下にして、
+    yaw_change_window_s: 1.0 #   1 s での変化の大きさが
+    yaw_change_dps: 18.9     #   これ以上 (全走行の走行中の p99。p95 は 12.3)
+    yaw_change_span_s: [-3.0, 3.0]   # 衝撃からこの範囲で探す
+    merge_gap_s: 0.3
+    min_len_s: 0.2
+    show_s: 1.0              # 状況の欄で、区間が終わったあとも点灯を続ける秒
+  font_path: "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc"   # 下の注記を画像に書くフォント (matplotlib と同じもの)
+  footnote: "模式図: タイヤは車体と一体。車体の上下のずれは上下加速度 (0.7-20 Hz) に比例 (変位ではない)。ロール角・ピッチ角は姿勢の測定値 (前後 ±10 s の中央値からの差、1.5 倍に誇張)。ペダルは単位未確認 (racepak の throttle と brake の名前は中身と逆なので入れ替えた)。アクセルの信号は衝撃の近くで飛び値・欠測になりやすい。舵角は実際のハンドル角と言えないので描かない。速度・前後の加速度は GPS から。状況の欄は信号からの自動の検出で、判定ではない"

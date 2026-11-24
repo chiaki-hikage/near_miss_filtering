@@ -1,0 +1,106 @@
+# 実走行 CAN から制動性能 (利き) をどこまで正確に評価できるかの PoC (段階 1)。
+# 説明: docs/brake_performance_rav4.md。データセットの調査: docs/brake_fade_datasets.md
+#
+# 主対象 RAV4 (comma2k19 Chunk 1〜2)、比較対象 Civic (comma2k19 Chunk 3〜10 のうち手元の 389 セグメント)。
+# RAV4 の信号は configs/vehicles/toyota_rav4.yaml から読む。
+# Civic には vehicles/ の設定が無い。vehicles/ に足すと既存の処理が Civic を扱い始めるので、ここにだけ定義する。
+
+grid_dt_s: 0.05              # 20 Hz にそろえる
+speed_smooth_s: 0.5          # 車速の移動平均の幅。減速度はこの平均の微分
+stale_s: 0.5                 # この時間より古い CAN の値は欠損にする
+block_gap_s: 5.0             # これより長い時刻の隙間で連続の塊を切る (セグメントの継ぎ目の約 2 s は切らない。欠番は切る)
+g: 9.80665
+
+grade:
+  source: global_pose        # ECEF の速度を測地の上向きに分けて、進む向きの勾配を出す (車体のピッチではない)
+  smooth_s: 2.0
+  min_speed_mps: 3.0         # これより遅いと速度の向きが定まらないので欠損
+  repeat_cell_m: 25.0        # 走行どうしの再現性: 25 m の升目 × 進む向き 8 方位
+  repeat_min_drives: 2
+
+coast:                       # 比較用: ブレーキを使っていない減速 (空気・転がり・エンジンブレーキ) を別に当てはめる模型
+  # 20261118_r1〜r3 で、アクセルのペダルが 0 の時刻を惰行とみなすと、openpilot の車間制御がペダルなしで
+  # 駆動している時刻が混ざり、高速の減速を小さく見積もると分かった (RAV4 で 30 m/s のとき約 0)。
+  # 標準では使わず、抵抗の項 (1, v2) を正常制動の模型に入れて、制動中の時刻で一緒に当てはめる。
+  use_in_standard: false
+  min_speed_mps: 5.0
+  gas_max: 0.0
+  form: [1, v, v2]
+
+events:
+  min_speed_mps: 3.0         # 制動の間ずっとこれより速い
+  min_duration_s: 1.5
+  steady_frac_of_peak: 0.5   # 値が峰の 50% 以上の区間を「定常」とする
+  min_steady_s: 0.5
+  min_peak_frac: 0.05        # 峰が「走行中に踏んでいる間の値の p99」の 5% 未満の弱い制動は除く (車で単位が違うため比で決める)
+  exclude_auto_brake: true   # 自動ブレーキと重なる制動は利きの計算から外す (RAV4)
+
+model:
+  lags_s: [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
+  forms:                      # 比べる正常制動の模型 (d = ブレーキによる減速度、L = 値 - 0 点)
+    M0: [L]                   # d = k L
+    M1: [1, L]                # d = b + k L
+    M2: [1, L, L2]            # 2 次
+    M3: [1, L, Lv]            # 速度で利きが変わる
+    M4: [1, v2, L, Lv]        # M3 + 空気抵抗 (v^2)。制動中の抵抗も一緒に当てはめる
+  folds: 5                    # 走行 (drive) 単位で分ける
+  seed: 20261118
+  sample_min_frac: 0.025      # 時刻ごとの当てはめに使う最小の値 (同じく p99 との比)
+
+heat:
+  taus_s: [60, 300, 900]      # 1 次遅れの熱の指標の時定数 (ブレーキの冷え方は不明なので 3 通り)
+  windows_s: [60, 300, 900]   # 制動で失ったエネルギーの移動和
+  ref_stop_kmh: 100           # 目安: 100 km/h からの停止 1 回 = 0.5 v^2 (J/kg)
+
+cars:
+  rav4:
+    vehicle_config: configs/vehicles/toyota_rav4.yaml
+    roots: [raw_data/Chunk_1, raw_data/Chunk_2]
+    seg_glob: "*/*"
+    channels:                # PoC で使う名前 -> 車種設定の信号名
+      level: BRAKE_LEVEL
+      pressed: BRAKE_PRESSED
+      gas: GAS_PEDAL
+      gvc: GVC
+      accel_x: ACCEL_X
+    extra_signals:           # 車種設定に無いもの
+      ASLP:                  # 0x320 VSC1S07 (opendbc toyota_2017)。docs/signals_rav4.md: global_pose の勾配と r 0.76
+        can_id: 800
+        start_bit: 23
+        length: 8
+        signed: true
+        bus: 0
+        unit: "deg"
+      ACC_ACCEL_CMD:         # openpilot が送る 0x343 ACC_CONTROL の加速度の指令 (送信フレーム)
+        can_id: 835
+        start_bit: 7
+        length: 16
+        signed: true
+        factor: 0.001
+        bus: 0
+        include_tx: true
+        unit: "m/s^2"
+    auto_brake: {signal: ACC_ACCEL_CMD, below: -0.3}   # 自動ブレーキの区間
+    level_zero: 0            # 踏んでいないときの値
+
+  civic:
+    vehicle_config: null
+    roots: [data/comma2k19_civic]
+    seg_glob: "99c94dc769b5d96e*/*"
+    channels:
+      level: BRAKE_PRESSURE1
+      level_alt: USER_BRAKE
+      pressed: BRAKE_PRESSED
+      gas: PEDAL_GAS
+      auto: COMPUTER_BRAKING
+      long_accel: LONG_ACCEL
+    extra_signals:           # opendbc generator/honda: honda_civic_touring_2016_can.dbc と共通の DBC
+      BRAKE_PRESSED: {can_id: 380, start_bit: 53, length: 1, bus: 0}
+      PEDAL_GAS: {can_id: 380, start_bit: 7, length: 8, bus: 0}
+      USER_BRAKE: {can_id: 420, start_bit: 7, length: 16, factor: 0.015625, offset: -1.609375, bus: 0}
+      COMPUTER_BRAKING: {can_id: 420, start_bit: 23, length: 1, bus: 0}
+      BRAKE_PRESSURE1: {can_id: 487, start_bit: 7, length: 10, factor: 0.015625, offset: -103, bus: 0}
+      BRAKE_PRESSURE2: {can_id: 487, start_bit: 9, length: 10, factor: 0.015625, offset: -103, bus: 0}
+      LONG_ACCEL: {can_id: 490, start_bit: 23, length: 16, signed: true, factor: 0.0015, bus: 0}
+    auto_brake: {signal: COMPUTER_BRAKING, below: null, above: 0.5}
+    level_zero: null         # 走行ごとの踏んでいないときの中央値を 0 点にする (約 -101.4)
