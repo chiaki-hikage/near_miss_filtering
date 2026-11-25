@@ -132,3 +132,15 @@ def test_fade_risk_score_rules():
     S3 = FRI.score(D.iloc[:1], cfg, ["thermal", "continuous", "downhill"])   # 測れない成分を除くと残りの重みで平均
     assert abs(S3.score[0] - 100) < 1e-9
     assert abs(sum(S3[f"pts_{c}"][0] for c in FRI.COMP) - S3.score[0]) < 1e-9
+
+
+def test_forward_view_projection():
+    """前方の CG の投影: 視線が下を向く (下り) と、遠くの水平な点 (水平線) は画面の上に出る。真正面の点は画面の中央。"""
+    import ncst_forward_view as FV
+    cam = np.array([0.0, 0.0, 0.0])
+    P = np.array([[0.0, 1e6, 0.0], [0.0, 100.0, 0.0], [10.0, 100.0, 0.0]])   # 北へ遠く・北へ 100 m・その 10 m 右 (東)
+    x, y, f = FV.project(P, cam, (0.0, 1.0), -0.05, 1.0)
+    assert y[0] > 0 and abs(y[0] - np.tan(0.05)) < 1e-4
+    x0, y0, _ = FV.project(P, cam, (0.0, 1.0), 0.0, 1.0)
+    assert abs(x0[1]) < 1e-12 and abs(y0[1]) < 1e-12
+    assert x0[2] > 0                                                          # 右の点は画面の右

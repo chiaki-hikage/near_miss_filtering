@@ -356,6 +356,7 @@ def main() -> int:
     ap.add_argument("--window", type=float, nargs=2, default=None, metavar=("START_S", "END_S"), help="動画の時間窓 [s] (既定: 熱の指標が最大の区間から自動で決める)")
     ap.add_argument("--speedup", type=float, default=None, help="動画の再生速度 (既定: udacity_hmb.yaml の video.speedup)")
     ap.add_argument("--no-slope", action="store_true", help="左下の勾配のイラストを描かない")
+    ap.add_argument("--fps", type=float, default=None, help="動画の 1 秒あたりの枚数 (既定: udacity_hmb.yaml の video.fps)")
     a = ap.parse_args()
     cfg = yaml.safe_load(CFG.read_text())
     A = cfg["analysis"]
@@ -459,9 +460,9 @@ def main() -> int:
                 rr = yaml.safe_load(Path("configs/brake/fade_risk_index.yaml").read_text())["rank"]
                 S["risk_run"] = a.risk_run
             vwin = tuple(a.window) if a.window else win
-            V = dict(A["video"], **({"speedup": a.speedup} if a.speedup else {}))
+            V = dict(A["video"], **({"speedup": a.speedup} if a.speedup else {}), **({"fps": a.fps} if a.fps else {}))
             S["video"] = make_video(D, S, bag, cfg["camera_topic"], vwin, V, out / "scene.mp4", Ev, risk, rr, slope=not a.no_slope)
-            S["video"].update(window_s=list(vwin), speedup=V["speedup"], slope_illustration=not a.no_slope)
+            S["video"].update(window_s=list(vwin), speedup=V["speedup"], fps=V["fps"], slope_illustration=not a.no_slope)
     (out / "summary.json").write_text(json.dumps(S, ensure_ascii=False, indent=1, default=float))
     (out / "meta.json").write_text(json.dumps(dict(run_id=a.run_id, bag=name, config=CFG.as_posix(), analysis=A), ensure_ascii=False, indent=1))
     print(json.dumps(S, ensure_ascii=False, indent=1, default=float))

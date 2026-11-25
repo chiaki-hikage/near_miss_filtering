@@ -1,0 +1,59 @@
+# NCST の高速道路の走行の前方視点の再現 (CG)。scripts/brake/ncst_forward_view.py
+# 実際の映像ではない。経路 (OpenStreetMap) と標高 (USGS 3DEP) から描いた道路の絵で、位置は ncst_route_grade.py の推定 (区間ごとに一定の速さ)
+# 地形は USGS 3DEP の 1 秒角 (約 30 m) の DEM (2026-11-25 に取得、data/brake/ncst_dem/)。他の車・草木・天気・車線の位置は分からない
+
+inputs:
+  timeline: out/brake_fade/20261119_r34_ncst_route_scene_risk/timeline_grade.csv   # 1 s ごとの推定位置 s_est_m・勾配・温度・圧力・リスク
+  route_profile: out/brake_fade/20261119_r34_ncst_route_scene_risk/route_profile.csv   # 50 m ごとの経路 (lat, lon, elev_s)
+  osm: data/brake/ncst_route/osm_i15_motorway.json   # 車線数 (lanes) を取る
+  route_summary: out/brake_fade/20261119_r34_ncst_route_scene_risk/summary.json   # 峠・地図の長い下り坂 2 本 (距離・高度差・平均勾配)
+
+road:                       # 道路の形 (米国の高速道路の一般的な値。この区間で測ったものではない)
+  lane_width_m: 3.7         # 12 ft
+  shoulder_right_m: 3.0     # 仮定
+  shoulder_left_m: 1.2      # 仮定
+  dash_len_m: 3.0           # 車線の破線 10 ft
+  dash_gap_m: 9.0           # 30 ft
+  lanes_default: 4          # OSM の lanes が取れない所 (南行きで最も多い値)
+  lanes_match_max_m: 60     # 経路の点から、この距離以内の同じ向きの OSM の way の lanes を使う
+  lanes_smooth_m: 400       # 車線数を、この幅の中央値でならす (合流・分岐の短い増減で道幅が揺れないように)
+
+camera:                     # 仮定: トラックの運転席の目の高さと、車道の中央の位置 (車線は分からない)
+  height_m: 2.5
+  lateral_m: 0.0            # 車道の中央からの横の位置 (+ 右)
+  hfov_deg: 60
+  pitch_window_m: 30        # 視線の傾き = 足元から前方この距離の勾配 (車体は路面に沿う)
+  view_m: 1500              # 描く前方の距離 (路面)
+  lines_m: 900               # 白線を描く前方の距離 (遠くの白線は画面で潰れて塊に見えるため)
+  n_samples: 260
+
+terrain:                    # 地形 (USGS 3DEP 1 秒角の DEM。scripts/brake/ncst_dem_crop.py で経路の周りを切り出した npz)
+  dem_npz: data/brake/ncst_dem/crop.npz
+  near_m: 20                # 地形を描く前方の距離の範囲
+  far_m: 20000
+  n_range: 190
+  n_azimuth: 150
+  azimuth_margin_deg: 6     # 画角の外にも少し広げる (縁が欠けないように)
+  corridor_m: 25            # 道路の中心線からこの距離以内の地形は、路面より corridor_drop_m 低くする (描画のため)
+  corridor_drop_m: 1.0
+  light_azimuth_deg: 315    # 陰影の光の向き (北西から、模式)
+  light_altitude_deg: 45
+  color_dark: [0.42, 0.38, 0.30]    # 陰の斜面
+  color_light: [0.80, 0.74, 0.60]   # 日の当たる斜面 (乾いた土と低木の色の模式)
+  haze: 0.75                # 最も遠い所で空の色に寄せる割合
+
+display:                    # 画面の表示 (2026-11-25: 下り坂でブレーキを多用していることが直感的に分かるように)
+  view_aspect: 1.6          # 前方の CG の横 / 縦
+  brake_on_psi: 5.0         # ブレーキを踏んでいる = ブレーキ圧がこれより大きい (fade_risk_index.py の連続制動と同じ)
+  brake_merge_s: 2          # 踏み始めの回数を数えるとき、これ以下の間隔で踏み直したものは 1 回とみなす
+  duty_window_s: 300        # 「直前 5 分のブレーキ時間」の窓 (リスク指標の連続制動と同じ)
+  psi_max: 25               # ブレーキ圧のゲージの上限 (走行中の最大は約 22 psi)
+  temp_range_C: [40, 170]   # 温度のゲージの範囲 (色は ncst_scene_illustration.TCMAP と同じ)
+  slope_icon_exaggeration: 5   # 坂の絵の傾きの誇張 (画面に「傾き ×5」と書く)
+
+video:
+  trim_to_estimate: true    # 位置の推定がある時刻だけを動画にする (GPS が切れる前・最後の下りの後を除く)
+  start_min: 136.0
+  end_min: 159.0
+  step_s: 2                 # 2 s ごとに 1 枚
+  fps: 15                   # → 30 倍速

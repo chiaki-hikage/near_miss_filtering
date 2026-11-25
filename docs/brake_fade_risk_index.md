@@ -48,6 +48,10 @@
 - NCST の動画: `out/brake_fade/20261119_r34_ncst_route_scene_risk/scene.mp4` (札・色の枠・時系列の上の順位の帯)
 - Udacity の動画: `out/brake_fade/20261119_r32_udacity_hmb2_scene_risk/scene.mp4` (右の 6 段目・札・色の枠)
   - 短い版 (下りで熱が上がる 443〜463 s、20 s、等速、勾配のイラストなし): `out/brake_fade/20261124_r35_udacity_hmb2_short_descent/scene.mp4`
+  - 軽量版 (r32 の 3 倍速・約 1 MB): `out/brake_fade/20261125_r36_udacity_hmb2_scene_risk_3x_small/scene_1mb.mp4`
+- NCST の前方視点の CG (地図から描いた絵で、実際の映像ではない): `out/brake_fade/20261125_r37_ncst_forward_view/scene.mp4` (`scripts/brake/ncst_forward_view.py`)
+  - 山の形 (USGS 3DEP 1 秒角の DEM) を足し、位置の推定の範囲外を除いた版: `out/brake_fade/20261125_r38_ncst_forward_view_dem/scene.mp4`
+  - 坂の札・標高の断面・ブレーキ圧と温度のゲージを足した現行: `out/brake_fade/20261125_r39_ncst_forward_view_dashboard/scene.mp4`
 - 週次スライド 3・4 枚目の図 (`reports/weekly/2026-W47/brake_fade_fig/fig3_ncst_road.png`、`fig4_udacity.png`) に、スコアの段を足した
 
 ## 5. 実行
